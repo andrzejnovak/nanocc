@@ -7,6 +7,7 @@ import pprint
 from tqdm import tqdm
 from p_tqdm import p_map
 from histoprint import print_hist
+import numpy as np
 
 import uproot
 from coffea import hist
@@ -20,13 +21,10 @@ from coffea import processor
 def validate(file):
     try:
         fin = uproot.open(file)
-        if 'otree' in fin:
-            return fin['otree'].numentries
-        else:
-            return fin['Events'].numentries
+        return fin['Events'].numentries
     except:
         print("Corrupted file: {}".format(file))
-
+        return 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
@@ -35,7 +33,7 @@ if __name__ == '__main__':
     parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--chunk', type=int, default=500000, metavar='N', help='Number of events per process chunk')
-    parser.add_argument('--max', type=int, default=500000, metavar='N', help='Max number of chunks to run in tottal')
+    parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot'], default='uproot', help='The type of executor to use (default: %(default)s)')
@@ -51,23 +49,34 @@ if __name__ == '__main__':
     
     for key in sample_dict.keys():
         sample_dict[key] = sample_dict[key][:args.limit]
-    #pprint.pprint(list(sample_dict.keys()))
+    # pprint.pprint(list(sample_dict.keys()))
+
+    # For debugging
+    if args.only is not None:
+        if args.only in sample_dict.keys():  # is dataset
+            sample_dict = dict([(args.only, sample_dict[args.only])])
+        if "*" in args.only: # wildcard for datasets
+            _new_dict = {}
+            print("Will only proces the following datasets:")
+            for k, v in sample_dict.items():
+                if k.lstrip("/").startswith(args.only.rstrip("*")):
+                    print("    ", k)
+                    _new_dict[k] = v
+            sample_dict = _new_dict
+        else:  # is file
+            for key in sample_dict.keys():
+                if args.only in sample_dict[key]:
+                    sample_dict = dict([(key, [args.only])]) 
+
 
     # Scan if files can be opened
     if args.validate:
         for sample in sample_dict.keys():
             r = p_map(validate, sample_dict[sample], num_cpus=args.workers,
                       desc=f'Validating {sample[:20]}...')
+            print("Events:", np.sum(list(r)))
         sys.exit(0)
     
-    # For debugging
-    if args.only is not None:
-        if args.only in sample_dict.keys():  # is dataset
-            sample_dict = dict([(args.only, sample_dict[args.only])])
-        else:  # is file
-            for key in sample_dict.keys():
-                if args.only in sample_dict[key]:
-                    sample_dict = dict([(key, [args.only])])               
     
     if args.executor in ['uproot', 'iterative']:
         if args.executor == 'iterative':
@@ -83,7 +92,7 @@ if __name__ == '__main__':
                                         'schema': processor.NanoAODSchema, 
                                         'flatten':True, 
                                         'workers': 4},
-                                    #chunksize=args.chunk, maxchunks=args.max
+                                    chunksize=args.chunk, maxchunks=args.max
                                     )
     elif args.executor == 'parsl':
         from cfg_parsl import *
@@ -98,7 +107,7 @@ if __name__ == '__main__':
                                         'schema': processor.NanoAODSchema, 
                                         'flatten':True, 
                                         'config': None},
-                                    #chunksize=args.chunk, maxchunks=args.max
+                                    chunksize=args.chunk, maxchunks=args.max
                                     )
 
 
@@ -143,11 +152,8 @@ if __name__ == '__main__':
     
     sr = sr_pre.integrate('genflavor')
     src = sr_pre.integrate('genflavor', output['templates'].identifiers('genflavor')[-2])
-
-    try:
-        show_hists(sr.project('msd', 'dataset'), title="Samples (SR)")
-    except:
-        pass
+    
+    show_hists(sr.project('msd', 'dataset'), title="Samples (SR)")
     try:
         show_hists(src.project('msd', 'dataset'), title="Samples (SR-charm)")
     except:
