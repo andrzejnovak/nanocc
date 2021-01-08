@@ -3,6 +3,11 @@ import json
 import argparse
 import pprint
 
+import parsl
+from parsl import python_app
+from parsl.config import Config
+from parsl.executors.threads import ThreadPoolExecutor
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('-i', '--input', default=r'metadata/dataset.json', help='')
@@ -19,20 +24,42 @@ if __name__ == '__main__':
     print("Storage dir:")
     print("   ", os.path.abspath(args.dir))
 
-    out_dict = {}
-    for key in sample_dict.keys():
-        new_list = []
-        print(key)
-        for fname in sample_dict[key]:
+    # Download instance
+    @python_app
+    def down_file(fname, out, ith=None):
+        if ith is not None:
+            print(ith)
+        os.system("xrdcp -P " + fname + " " + out)
+        return 0
+
+    # Setup multithreading
+    config = Config(executors=[ThreadPoolExecutor(max_threads=8)])
+    parsl.load(config)
+
+    # Write futures
+    out_dict = {} # Output filename list
+    run_futures = [] # Future list
+    for key in sorted(sample_dict.keys()):
+        new_list = [] 
+        #print(key)
+        for i, fname in enumerate(sample_dict[key]):
+            if i%5 == 0: 
+                # print some progress info
+                ith = f'{key}: {i}/{len(sample_dict[key])}'
+            else:
+                ith = None
             out = os.path.join(os.path.abspath(args.dir), fname.split("//")[-1].lstrip("/"))
             new_list.append(out)
             if args.download:
                 if os.path.isfile(out):
                     'File found'
                 else:
-                    #print("xrdcp -P " + fname + " " + out)
-                    os.system("xrdcp -P " + fname + " " + out)
+                    x = down_file(fname, out, ith)
+                    run_futures.append(x)
         out_dict[key] = new_list
+
+    for i, r in enumerate(run_futures):
+        r.result()
 
     print("Writing files to {}".format(args.output))
     with open(args.output, 'w') as fp:

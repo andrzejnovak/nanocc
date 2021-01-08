@@ -22,7 +22,7 @@ ulimit -u 32768
 '''#%(x509_proxy)
 
 twoGB = 2048
-nproc = 36
+nproc = 16
 
 sched_opts = '''
 #SBATCH --cpus-per-task=%d
@@ -43,8 +43,9 @@ slurm_htex = Config(
                 launcher=SrunLauncher(),
                 #min_blocks=4,
                 #init_blocks=6,
-                max_blocks=20,
-                init_blocks=16, 
+                max_blocks=6,
+                init_blocks=26, 
+                
                 #nodes_per_block=1,
                 partition='all',
                 scheduler_options=sched_opts,   # Enter scheduler_options if needed
@@ -54,7 +55,6 @@ slurm_htex = Config(
         )
     ],
     retries=20,
-    strategy=None,
 )
 
 #parsl.set_stream_logger() # <-- log everything to stdout
