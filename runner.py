@@ -2,9 +2,10 @@ import os
 import sys
 import json
 import argparse
+import time
 
 import pprint
-# from tqdm import tqdm
+from tqdm import tqdm
 # from p_tqdm import p_map
 from histoprint import print_hist
 import numpy as np
@@ -20,8 +21,8 @@ from coffea import processor
 
 def validate(fname):
     try:
-        fin = uproot.open(fname)
-        return fin['Events'].numentries
+        with uproot.open(fname) as fin:
+            return fin['Events'].num_entries
     except:
         print("Corrupted file: {}".format(fname))
         return fname
@@ -53,8 +54,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('--id', '--identifier', dest='identifier', default=r'hists', help='File identifier to carry through (default: %(default)s)')
     parser.add_argument('--output', default=r'hists.coffea', help='Output histogram filename (default: %(default)s)')
-    parser.add_argument('--samplejson', default='metadata/dataset_local.json', help='JSON file containing dataset and file locations (default: %(default)s)')
-    parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
+    parser.add_argument('--json', '--samples', '--paths', dest='samplejson', default='metadata/dataset_local.json', help='JSON file containing dataset and file locations (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--chunk', type=int, default=250000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
@@ -64,6 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--year', choices=['2016', '2017','2018'], required=True, help='Year to pass to the processor (triggers)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     args = parser.parse_args()
     if args.output == parser.get_default('output'):
@@ -99,6 +100,7 @@ if __name__ == '__main__':
 
     # Scan if files can be opened
     if args.validate:
+        start = time.time()
         from p_tqdm import p_map
         all_invalid = []
         for sample in sample_dict.keys():
@@ -112,9 +114,44 @@ if __name__ == '__main__':
         print("Bad files:")
         for fi in all_invalid:
             print(f"  {fi}")
+        end = time.time()
+        print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
+        if input("Remove bad files? (y/n)") == "y": 
+            print("Removing:")
+            for fi in all_invalid:
+                print(f"Removing: {fi}")            
+                os.system(f'rm {fi}')
         sys.exit(0)
+    # if args.validate:
+    #     import tqdm
+    #     start = time.time()
+    #     config = Config(executors=[ThreadPoolExecutor(max_threads=args.workers)])
+    #     parsl.load(config)
+    #     all_invalid = []
+    #     for sample in sample_dict.keys():
+    #         run_futures = []
+    #         for fname in sample_dict[sample]:
+    #             x = validate(fname)
+    #             run_futures.append(x)
+    #         _results = []
+    #         for r in tqdm.tqdm(run_futures, desc=f'Validating {sample[:20]}...', leave=True):
+    #             _results.append(r.result())
+    #         counts = np.sum([r for r in _results if np.isreal(r)])
+    #         all_invalid += [r for r in _results if type(r) == str]
+    #         print("Events:", np.sum(counts))
+    #     print("Bad files:")
+    #     for fi in all_invalid:
+    #         print(f"  {fi}")
+    #     end = time.time()
+    #     print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
+    #     if input("Remove bad files? (y/n)") == "y": 
+    #         print("Removing:")
+    #         for fi in all_invalid:
+    #             print(f"Removing: {fi}")            
+    #             os.system(f'rm {fi}')
+    #     sys.exit(0)
     
-    processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix)
+    processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year)
     if args.executor in ['uproot', 'iterative']:
         if args.executor == 'iterative':
             _exec = processor.iterative_executor
@@ -127,7 +164,7 @@ if __name__ == '__main__':
                                     executor_args={
                                         'skipbadfiles':True,
                                         'schema': processor.NanoAODSchema, 
-                                        'flatten':True, 
+                                        #'flatten':True, 
                                         'workers': 4},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
@@ -191,7 +228,7 @@ if __name__ == '__main__':
                                         'skipbadfiles':True,
                                         'savemetrics':True,
                                         'schema': processor.NanoAODSchema, 
-                                        'flatten':True, 
+                                        #'flatten':True, 
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
