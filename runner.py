@@ -56,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', default=r'hists.coffea', help='Output histogram filename (default: %(default)s)')
     parser.add_argument('--json', '--samples', '--paths', dest='samplejson', default='metadata/dataset_local.json', help='JSON file containing dataset and file locations (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
-    parser.add_argument('--chunk', type=int, default=250000, metavar='N', help='Number of events per process chunk')
+    parser.add_argument('--chunk', type=int, default=2000000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--v2', action='store_true', help='Use DDX v2')
@@ -104,7 +104,6 @@ if __name__ == '__main__':
         from p_tqdm import p_map
         all_invalid = []
         for sample in sample_dict.keys():
-            #print(sample)
             _rmap = p_map(validate, sample_dict[sample], num_cpus=args.workers,
                       desc=f'Validating {sample[:20]}...')
             _results = list(_rmap)
@@ -122,35 +121,8 @@ if __name__ == '__main__':
                 print(f"Removing: {fi}")            
                 os.system(f'rm {fi}')
         sys.exit(0)
-    # if args.validate:
-    #     import tqdm
-    #     start = time.time()
-    #     config = Config(executors=[ThreadPoolExecutor(max_threads=args.workers)])
-    #     parsl.load(config)
-    #     all_invalid = []
-    #     for sample in sample_dict.keys():
-    #         run_futures = []
-    #         for fname in sample_dict[sample]:
-    #             x = validate(fname)
-    #             run_futures.append(x)
-    #         _results = []
-    #         for r in tqdm.tqdm(run_futures, desc=f'Validating {sample[:20]}...', leave=True):
-    #             _results.append(r.result())
-    #         counts = np.sum([r for r in _results if np.isreal(r)])
-    #         all_invalid += [r for r in _results if type(r) == str]
-    #         print("Events:", np.sum(counts))
-    #     print("Bad files:")
-    #     for fi in all_invalid:
-    #         print(f"  {fi}")
-    #     end = time.time()
-    #     print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
-    #     if input("Remove bad files? (y/n)") == "y": 
-    #         print("Removing:")
-    #         for fi in all_invalid:
-    #             print(f"Removing: {fi}")            
-    #             os.system(f'rm {fi}')
-    #     sys.exit(0)
-    
+  
+
     processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year)
     if args.executor in ['uproot', 'iterative']:
         if args.executor == 'iterative':
@@ -164,7 +136,6 @@ if __name__ == '__main__':
                                     executor_args={
                                         'skipbadfiles':True,
                                         'schema': processor.NanoAODSchema, 
-                                        #'flatten':True, 
                                         'workers': 4},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
@@ -183,16 +154,16 @@ if __name__ == '__main__':
         x509_proxy = 'x509up_u%s'%(os.getuid())
         wrk_init = '''
         export XRD_RUNFORKHANDLER=1
-        export X509_USER_PROXY=x509up_u31233
+        export X509_USER_PROXY=/tmp/x509up_u27388
         export X509_CERT_DIR=/home/anovak/certs/
         ulimit -u 32768
         '''
         twoGB = 2048
         nproc = 16
-        sched_opts = '''
-        #SBATCH --cpus-per-task=%d
-        #SBATCH --mem-per-cpu=%d
-        ''' % (nproc, twoGB, )
+        # sched_opts = '''
+        # #SBATCH --cpus-per-task=%d
+        # #SBATCH --mem-per-cpu=%d
+        # ''' % (nproc, twoGB, )
 
 
         slurm_htex = Config(
@@ -201,7 +172,7 @@ if __name__ == '__main__':
                     label="coffea_parsl_slurm",
                     address=address_by_hostname(),
                     prefetch_capacity=0,
-                    max_workers=nproc,
+                    #max_workers=nproc,
                     #suppress_failure=True,
                     provider=SlurmProvider(
                         channel=LocalChannel(script_dir='test_parsl'),
@@ -209,7 +180,7 @@ if __name__ == '__main__':
                         max_blocks=(args.workers)+5,
                         init_blocks=args.workers, 
                         partition='all',
-                        scheduler_options=sched_opts,   # Enter scheduler_options if needed
+                        # scheduler_options=sched_opts,   # Enter scheduler_options if needed
                         worker_init=wrk_init,         # Enter worker_init if needed
                         walltime='00:120:00'
                     ),
@@ -228,7 +199,6 @@ if __name__ == '__main__':
                                         'skipbadfiles':True,
                                         'savemetrics':True,
                                         'schema': processor.NanoAODSchema, 
-                                        #'flatten':True, 
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
@@ -239,12 +209,12 @@ if __name__ == '__main__':
 
         cluster = SLURMCluster(
             queue='all',
-            cores=16,
-            processes=16,
-            memory="200 GB",
+            cores=40,
+            processes=1,
+            memory="500GB",
             retries=10,
             walltime='00:30:00',
-            env_extra=['ulimit -u 32768'],
+            env_extra=['ulimit -u 32768', 'ulimit -n 8000'],
         )
         cluster.scale(jobs=args.workers)
 
@@ -260,7 +230,6 @@ if __name__ == '__main__':
                                             'client': client,
                                             'skipbadfiles':True,
                                             'schema': processor.NanoAODSchema, 
-                                            'flatten':True, 
                                         },
                                         chunksize=args.chunk, maxchunks=args.max
                             )
