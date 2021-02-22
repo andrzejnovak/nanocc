@@ -56,10 +56,12 @@ if __name__ == '__main__':
     parser.add_argument('--output', default=r'hists.coffea', help='Output histogram filename (default: %(default)s)')
     parser.add_argument('--json', '--samples', '--paths', dest='samplejson', default='metadata/dataset_local.json', help='JSON file containing dataset and file locations (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
-    parser.add_argument('--chunk', type=int, default=2000000, metavar='N', help='Number of events per process chunk')
+    parser.add_argument('--chunk', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--v2', action='store_true', help='Use DDX v2')
+    parser.add_argument('--rew', action='store_true', help='Reweight powheg sample to NNLOPS')
+    parser.add_argument('--jec', action='store_true', help='Run JECs')
     parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
     parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
@@ -123,22 +125,28 @@ if __name__ == '__main__':
         sys.exit(0)
   
 
-    processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year)
+    processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year,
+                                    nnlops_rew=args.rew,  skipJER=not args.jec, tightMatch=True)
+
     if args.executor in ['uproot', 'iterative']:
         if args.executor == 'iterative':
             _exec = processor.iterative_executor
         else:
             _exec = processor.futures_executor
-        output = processor.run_uproot_job(sample_dict,
+        output, metrics = processor.run_uproot_job(sample_dict,
                                     treename='Events',
                                     processor_instance=processor_object,
                                     executor=_exec,
                                     executor_args={
                                         'skipbadfiles':True,
+                                        'savemetrics':True,
                                         'schema': processor.NanoAODSchema, 
                                         'workers': 4},
-                                    chunksize=args.chunk, maxchunks=args.max
+                                    chunksize=args.chunk, maxchunks=args.max,
+                                    #shuffle=True,
                                     )
+        import pprint
+        pprint.pprint(metrics)
     elif args.executor == 'parsl':
         import parsl
         from parsl.app.app import python_app, bash_app
@@ -182,7 +190,7 @@ if __name__ == '__main__':
                         partition='all',
                         # scheduler_options=sched_opts,   # Enter scheduler_options if needed
                         worker_init=wrk_init,         # Enter worker_init if needed
-                        walltime='00:120:00'
+                        walltime='03:00:00'
                     ),
                 )
             ],
@@ -202,6 +210,8 @@ if __name__ == '__main__':
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
+        print(metrics)                                    
+
     elif args.executor == 'dask':
         from dask_jobqueue import SLURMCluster
         from distributed import Client

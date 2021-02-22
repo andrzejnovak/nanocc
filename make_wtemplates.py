@@ -28,7 +28,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 parser.add_argument('--id', '--identifier', dest='identifier', required=True, help='File identifier to carry through (default: %(default)s)')
-parser.add_argument("--type", default='n2cvb',  choices=['n2', 'n2cvb'], type=str, help="Which region to run")
+parser.add_argument("--type", default='n2cvb',  choices=['n2', 'n2cvb', 'cvl'], type=str, help="Which region to run")
 parser.add_argument('--plot', action='store_true', help='Make control plots')
 args = parser.parse_args()
 print("Running with the following options:")
@@ -47,50 +47,77 @@ if args.type == 'n2cvb':
     Pass = (output['wtag_opt'] # PP
             .integrate('region', 'wtag')
             .integrate('systematic', 'nominal')
-            .rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            .rebin('msd', hist.Bin('msd','msd', 29, 40, 141.5))
             .integrate('n2ddt', slice(None, 0))
             .integrate('ddcvb', slice(0.017, None))
-            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu', 'data_obs']]
+            .integrate('ddc')
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
             .project('msd','genflavor', 'process'))
 
     Fail = (
         (output['wtag_opt'] # PF
             .integrate('region', 'wtag')
             .integrate('systematic', 'nominal')
-            .rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            #.rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            .rebin('msd', hist.Bin('msd','msd', 29, 40, 141.5))
             .integrate('n2ddt', slice(None, 0))
             .integrate('ddcvb', slice(None, 0.017))
-            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu', 'data_obs']]
+            .integrate('ddc')
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
             .project('msd', 'genflavor', 'process')) 
         + (output['wtag_opt'] # FP/FF
             .integrate('region', 'wtag')
             .integrate('systematic', 'nominal')
-            .rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            #.rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            .rebin('msd', hist.Bin('msd','msd', 29, 40, 141.5))
             .integrate('n2ddt', slice(0, None))
-            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu', 'data_obs']]
+            .integrate('ddc')
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
             .project('msd', 'genflavor', 'process'))
     )
 elif args.type == 'n2':
     Pass = (output['wtag_opt'] # P
             .integrate('region', 'wtag')
             .integrate('systematic', 'nominal')
-            .rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            .rebin('msd', hist.Bin('msd','msd', 29, 40, 141.5))
             .integrate('n2ddt', slice(None, 0))
-            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu', 'data_obs']]
+            .integrate('ddc')
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
             .project('msd','genflavor', 'process'))
 
     Fail = (output['wtag_opt'] # F
             .integrate('region', 'wtag')
             .integrate('systematic', 'nominal')
-            .rebin('msd', hist.Bin('msd', 'msd', 18, 40, 136.6))
+            .rebin('msd', hist.Bin('msd', 'msd', 29, 40, 141.5))
             .integrate('n2ddt', slice(0, None))
-            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu', 'data_obs']]
+            .integrate('ddc')
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
+            .project('msd', 'genflavor', 'process'))
+elif args.type == 'cvl':
+    Pass = (output['wtag_opt'] # P
+            .integrate('region', 'wtag')
+            .integrate('systematic', 'nominal')
+            .rebin('msd', hist.Bin('msd', 'msd', 29, 40, 141.5))
+            .integrate('n2ddt', slice(None, 0))
+            .integrate('ddcvb', slice(0.017, None))
+            .integrate('ddc', slice(0.44, None))
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
+            .project('msd','genflavor', 'process'))
+
+    Fail = (output['wtag_opt'] # F
+            .integrate('region', 'wtag')
+            .integrate('systematic', 'nominal')
+            .rebin('msd', hist.Bin('msd','msd', 29, 40, 141.5))
+            .integrate('n2ddt', slice(None, 0))
+            .integrate('ddcvb', slice(0.017, None))
+            .integrate('ddc', slice(None, 0.44))
+            [['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'data_obs', 'qcd', 'tqq', 'wln', 'stqq']]
             .project('msd', 'genflavor', 'process'))
 else:
     raise NotImplementedError
 
-mclist = ['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'qcd', 'ST', 'WJetsToLNu']
-mclistnoqcd = ['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu']
+mclist = ['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'qcd', 'wln', 'tqq']
+mclistnoqcd = ['TTToSemiLeptonic', 'TTToHadronic', 'TTTo2L2Nu', 'ST', 'WJetsToLNu', 'wln', 'tqq']
 
 temp_data_pass = Pass['data_obs'].integrate('genflavor').project('msd')
 temp_data_fail = Fail['data_obs'].integrate('genflavor').project('msd')
@@ -101,16 +128,19 @@ temp_unmatched_fail = Fail[mclistnoqcd].integrate('genflavor', 0).project('msd')
 temp_matched_pass = Pass[mclistnoqcd].integrate('genflavor', slice(1, 4)).project('msd')
 temp_matched_fail = Fail[mclistnoqcd].integrate('genflavor', slice(1, 4)).project('msd')
 
+print("From samples:")
+print([b.name for b in Pass.axis('process').identifiers()])
+
 print("Fit templates")
 print("Data")
-print(temp_data_pass.project('msd').values()[()])
-print(temp_data_fail.project('msd').values()[()])
+print(temp_data_pass.values()[()])
+print(temp_data_fail.values()[()])
 print("Unmatched")
-print(temp_unmatched_pass.project('msd').values()[()])
-print(temp_unmatched_fail.project('msd').values()[()])
+print(temp_unmatched_pass.values()[()])
+print(temp_unmatched_fail.values()[()])
 print("Matched")
-print(temp_matched_pass.project('msd').values()[()])
-print(temp_matched_fail.project('msd').values()[()])
+print(temp_matched_pass.values()[()])
+print(temp_matched_fail.values()[()])
 
 if args.plot:
     # Matched 

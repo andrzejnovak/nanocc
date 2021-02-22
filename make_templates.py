@@ -77,7 +77,7 @@ def rescale(accumulator, xsec):
     return accumulator
 
 
-def collate(hist_obj, auto=True):
+def collate(hist_obj, mergemap=None, info=True):
     """Merge datsets"""
     name_map = {
         'JetHT': 'data_obs',
@@ -88,7 +88,8 @@ def collate(hist_obj, auto=True):
         'GluGluHToBB': 'hbb',
         'GluGluHToCC': 'hcc',
         'TTToHadronic': 'tqq',
-        'TTToSemileptonic': 'tqq',
+        'TTToSemiLeptonic': 'tqq',
+        'TTToSemileptonic': 'tqq', #
         'TTTo2L2Nu': 'tqq',
         'ST' : 'stqq',
         'WW': 'vvqq',
@@ -96,12 +97,13 @@ def collate(hist_obj, auto=True):
         'ZZ': 'vvqq',
         'WJetsToLNu' : 'wln',
         'DYJetsToLL' : 'zll',
+        'VBFHToCC': 'vbfhcc',
         }
 
     import json
     sample_keys = [id.name for id in hist_obj.axis('dataset').identifiers()]
 
-    if auto:
+    if mergemap is None:
         # Sort and group samples
         from collections import OrderedDict
         import string
@@ -116,16 +118,32 @@ def collate(hist_obj, auto=True):
         alphabet = "QTZWG" + string.ascii_uppercase + string.ascii_lowercase
         groups = list(set(mapper.values()))
         map_dict = OrderedDict()
-        #for group in sorted(groups, key=lambda word: [alphabet.index(c) for c in word]):
         for group in groups:
             map_dict[group] = [k for k, v in mapper.items() if v == group]
 
-        # Group
-        _cat = hist.Cat("process", "Process", sorting='placement')
-        hist_obj = hist_obj.group('dataset', _cat, map_dict)
+        outjson = f'mergemap_{args.identifier}.json'
+        with open(outjson, 'w') as fout:
+            json_dumps_str = json.dumps(map_dict, indent=4)
+            print(json_dumps_str, file=fout)
     else:
-        raise NotImplementedError
+        with open(mergemap) as json_file:
+            map_dict = json.load(json_file)
 
+    if info:
+        print("Merging datasets")
+        for key, vals in map_dict.items():
+            print("  "+key)
+            for val in vals:
+                print("    "+val)
+
+    if mergemap is None:
+        print(f"Writing merge map to {outjson}")
+    else:
+        print(f"Merge map loaded from {mergemap}")
+    
+    # Group
+    _cat = hist.Cat("process", "Process", sorting='placement')
+    hist_obj = hist_obj.group('dataset', _cat, map_dict)
     return hist_obj
 
 if __name__ == "__main__":
@@ -144,6 +162,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--id', '--identifier', dest='identifier', default=r'', help='File identifier to carry through (default: %(default)s)')
     parser.add_argument("--year", default=2017, type=int, required=True, help="Scale by appropriate lumi")
+    parser.add_argument("-m", "--merge", "--mergemap", dest='mergemap', default=None, type=str, help="Load a mergemap json")
     parser.add_argument("--split", type=str2bool, default='True', choices={True, False}, help='Split W/Z by flavour')
     parser.add_argument("--muon", type=str2bool, default='False', choices={True, False}, help='Process muon templates')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
@@ -179,7 +198,7 @@ if __name__ == "__main__":
     output = rescale(output, xsecs)
     #########
     # Do Signal region
-    h = collate(output['templates']).integrate('region', 'signal')
+    h = collate(output['templates'], args.mergemap).integrate('region', 'signal')
     
     # Scale MC by lumi
     _nodata = re.compile("(?!data_obs)")
@@ -190,7 +209,7 @@ if __name__ == "__main__":
     chists = copy.deepcopy(output)
     for key, val in chists.items():
         if isinstance(val, hist.Hist):
-            val = collate(val)#.integrate('region', 'signal')
+            val = collate(val, args.mergemap, info=False)
             val.scale({p: lumi[args.year] for p in val[_nodata].identifiers('process')}, axis="process")
             chists[key] = val
     debug_save_name = f'scaled_hists_{args.identifier}.coffea'
@@ -210,9 +229,9 @@ if __name__ == "__main__":
                 if syst.name != "nominal" and proc == 'data_obs': continue
                 source_proc = proc
                 if args.split:
-                    if proc.name == 'zbb':
+                    if proc.name in ['zbb', 'hbb']:
                         mproj = (3,)
-                    elif proc.name == 'wcq' or proc.name == 'zcc':
+                    elif proc.name == 'wcq' or proc.name in ['zcc', 'hcc']:
                         mproj = (2,)
                     elif proc.name == 'wqq' or proc.name == 'zqq':
                         mproj = (1,)
@@ -251,23 +270,15 @@ if __name__ == "__main__":
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
                                     .integrate('ddb')
-                                    #.integrate('ddcvb', slice(0.2, None))
                                     .integrate('ddcvb', slice(0.017, None))
-                                    #.integrate('ddcvb')
-                                    #.integrate('pxx')
-                                    # .integrate('ddc', slice(None,0.83))
                                     .integrate('ddc', slice(None, 0.44))
                                     )
                     pass_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
-                                    .integrate('ddb')
-                                    # .integrate('ddcvb', slice(0.2, None))   
+                                    .integrate('ddb') 
                                     .integrate('ddcvb', slice(0.017, None))   
-                                    #.integrate('ddcvb')
-                                    #.integrate('pxx')
-                                    # .integrate('ddc', slice(0.83,None))
                                     .integrate('ddc', slice(0.44,None))
                                     )
 
