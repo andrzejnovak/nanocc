@@ -51,6 +51,17 @@ def show_hists(h, title='', scaleH=False):
 
 
 if __name__ == '__main__':
+
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('--id', '--identifier', dest='identifier', default=r'hists', help='File identifier to carry through (default: %(default)s)')
     parser.add_argument('--output', default=r'hists.coffea', help='Output histogram filename (default: %(default)s)')
@@ -61,7 +72,13 @@ if __name__ == '__main__':
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--v2', action='store_true', help='Use DDX v2')
     parser.add_argument('--rew', action='store_true', help='Reweight powheg sample to NNLOPS')
-    parser.add_argument('--jec', action='store_true', help='Run JECs')
+
+    parser.add_argument("--jec", type=str2bool, default='True', choices={True, False}, const=True, nargs='?', help="Tighter gen match requirements")
+    parser.add_argument("--tightMatch", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
+
+    parser.add_argument("--looseTau", type=str2bool, default='False', choices={True, False}, help="Looser tau veto")
+    
+    parser.add_argument('--newTrigger', action='store_true', help='Use new trig map')
     parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
     parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
@@ -69,6 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--year', choices=['2016', '2017','2018'], required=True, help='Year to pass to the processor (triggers)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     args = parser.parse_args()
+    print(args)
     if args.output == parser.get_default('output'):
         if args.identifier == parser.get_default('identifier'):
             args.output = f'hists_{args.sample}.coffea'
@@ -126,7 +144,9 @@ if __name__ == '__main__':
   
 
     processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year,
-                                    nnlops_rew=args.rew,  skipJER=not args.jec, tightMatch=True)
+                                    nnlops_rew=args.rew, skipJER=not args.jec, tightMatch=args.tightMatch,
+                                    newTrigger=args.newTrigger, looseTau=args.looseTau,
+                                    )
 
     if args.executor in ['uproot', 'iterative']:
         if args.executor == 'iterative':

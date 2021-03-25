@@ -56,7 +56,7 @@ def xSecReader(fname):
     return _dict
     
 
-def rescale(accumulator, xsec):
+def rescale(accumulator, xsecs):
     """Scale by lumi"""
     lumi = 1000 
     from coffea import hist
@@ -97,7 +97,17 @@ def collate(hist_obj, mergemap=None, info=True):
         'ZZ': 'vvqq',
         'WJetsToLNu' : 'wln',
         'DYJetsToLL' : 'zll',
-        'VBFHToCC': 'vbfhcc',
+        'VBFHToCC_M-125_13TeV_powheg_pythia8_weightfix': 'vbfhcc',
+        'WminusH_HToCC_WToLNu_M125_13TeV_powheg_pythia8': 'whcc',
+        'WminusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8': 'whcc',
+        'WplusH_HToCC_WToLNu_M125_13TeV_powheg_pythia8': 'whcc',
+        'WplusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8': 'whcc',
+        'ZH_HToCC_ZToLL_M125_13TeV_powheg_pythia8': 'zhcc',
+        'ZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8': 'zhcc',
+        'ZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8': 'zhcc',
+        'ggZH_HToCC_ZToLL_M125_13TeV_powheg_pythia8': 'zhcc',
+        'ggZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8': 'zhcc',
+        'ggZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8': 'zhcc',
         }
 
     import json
@@ -164,9 +174,11 @@ if __name__ == "__main__":
     parser.add_argument("--year", default=2017, type=int, required=True, help="Scale by appropriate lumi")
     parser.add_argument("-m", "--merge", "--mergemap", dest='mergemap', default=None, type=str, help="Load a mergemap json")
     parser.add_argument("--split", type=str2bool, default='True', choices={True, False}, help='Split W/Z by flavour')
-    parser.add_argument("--muon", type=str2bool, default='False', choices={True, False}, help='Process muon templates')
+    parser.add_argument("--muon", type=str2bool, default='True', choices={True, False}, help='Process muon templates')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
-    parser.add_argument("--type", default='cc',  choices=['cc', 'bb', '3'], type=str, help="B templates or C tempaltes")
+    parser.add_argument("--type", default='cc', choices=['cc', 'bb', '3'], type=str, help="B templates or C tempaltes")
+
+    parser.add_argument('--pn', '--particleNet', dest='particleNet', action='store_true', help='Use ParticleNet')
     args = parser.parse_args()
     print("Running with the following options:")
     print(args)
@@ -221,6 +233,13 @@ if __name__ == "__main__":
     _extra_procs = {_s: StringBin(_s) for _s in ['wcq', 'zbb', 'zcc']}
     if args.split: proc_names += list(_extra_procs.values())
 
+    if args.particleNet:
+        CvLcut = 0.84
+        CvBcut = 0.11
+    else:
+        CvLcut = 0.44
+        CvBcut = 0.017
+
     totn_proc = len(proc_names) + len(h.identifiers('pt'))
     for proc in proc_names:
         print(proc)
@@ -270,16 +289,16 @@ if __name__ == "__main__":
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
                                     .integrate('ddb')
-                                    .integrate('ddcvb', slice(0.017, None))
-                                    .integrate('ddc', slice(None, 0.44))
+                                    .integrate('ddcvb', slice(CvBcut, None))
+                                    .integrate('ddc', slice(None, CvLcut))
                                     )
                     pass_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
                                     .integrate('ddb') 
-                                    .integrate('ddcvb', slice(0.017, None))   
-                                    .integrate('ddc', slice(0.44,None))
+                                    .integrate('ddcvb', slice(CvBcut, None))   
+                                    .integrate('ddc', slice(CvLcut, None))
                                     )
 
                 else:
@@ -352,7 +371,21 @@ if __name__ == "__main__":
 
     for proc in h.identifiers('process'):
         for syst in h.identifiers('systematic'):
-            mproj = (slice(None), 'all')
+            if syst.name != "nominal" and proc == 'data_obs': continue
+            source_proc = proc
+            if args.split:
+                if proc.name in ['zbb', 'hbb']:
+                    mproj = (3,)
+                elif proc.name == 'wcq' or proc.name in ['zcc', 'hcc']:
+                    mproj = (2,)
+                elif proc.name == 'wqq' or proc.name == 'zqq':
+                    mproj = (1,)
+                else:
+                    mproj = (slice(None), 'all')
+                if proc.name in ['wcq', 'wqq']: source_proc = 'wqq'
+                if proc.name in ['zbb', 'zcc', 'zqq']: source_proc = 'zqq'
+            else:
+                mproj = (slice(None), 'all')
             systreal = syst
             if args.type == 'cc':
                 fail_template = (h.integrate('process', source_proc)
@@ -361,11 +394,11 @@ if __name__ == "__main__":
                                     .integrate('pt')
                                     .integrate('ddb')
                                     #.integrate('ddcvb', slice(0.2, None))
-                                    .integrate('ddcvb', slice(0.017, None))
+                                    .integrate('ddcvb', slice(CvBcut, None))
                                     #.integrate('ddcvb')
                                     #.integrate('pxx')
                                     # .integrate('ddc', slice(None,0.83))
-                                    .integrate('ddc', slice(None, 0.44))
+                                    .integrate('ddc', slice(None, CvLcut))
                                     #.integrate('ddc')
                                     )
                 pass_template = (h.integrate('process', source_proc)
@@ -374,11 +407,11 @@ if __name__ == "__main__":
                                     .integrate('pt')
                                     .integrate('ddb')
                                     # .integrate('ddcvb', slice(0.2, None))   
-                                    .integrate('ddcvb', slice(0.017, None))   
+                                    .integrate('ddcvb', slice(CvBcut, None))   
                                     #.integrate('ddcvb')
                                     #.integrate('pxx')
                                     # .integrate('ddc', slice(0.83,None))
-                                    .integrate('ddc', slice(0.44,None))
+                                    .integrate('ddc', slice(CvLcut, None))
                                     #.integrate('ddc')
                                     )
             else:

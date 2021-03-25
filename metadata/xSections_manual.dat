@@ -103,37 +103,43 @@ WZ_TuneCP5_PSweights_13TeV-pythia8                                              
 
 # ggH 
 # Production mode from GenXsecAnalyzer
+# https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV
 # BR from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV
-GluGluHToBB_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8                                                 27.80*5.824E-01
+GluGluHToBB_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8                                                 27.80*5.824E-01 # GenXsecAnalyzer
 GluGluHToCC_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8                                                 27.80*2.891E-02
 
-GluGluHToCC_M125_13TeV_powheg_pythia8 				                                            	21.46*2.891E-02 # YR
+GluGluHToBB_M125_13TeV_powheg_pythia8                                                               48.85*5.824E-01
+GluGluHToCC_M125_13TeV_powheg_pythia8 				                                            	48.85*2.891E-02
 
 # Other H
-VBFHToBB_M-125_13TeV_powheg_pythia8_weightfix                                                       3.782*0.5824   
+VBFHToBB_M-125_13TeV_powheg_pythia8_weightfix                                                       3.782*5.824E-01
 VBFHToCC_M-125_13TeV_powheg_pythia8_weightfix                                                       3.782*2.891E-02
 
-WminusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                       0.37
-WminusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                       0.37
-WplusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                        0.58
-WplusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                        0.58
-ZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8                                                          3*(2.982E-02-4.14E-03)*5.824E-01
-ZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8                                                            0
-ZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8                                                          (1.776E-01-2.457E-02)*2.891E-02
-ZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8                                                            0
-Zll_Hbb                                                                                             3*(2.982E-02-4.14E-03)*5.824E-01
-Zll_Hcc                                                                                             3*(2.982E-02-4.14E-03)*2.891E-02
-ggZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8                                                        2.457E-02*5.824E-01  
-ggZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8                                                          2.457E-02*2.891E-02 
-ggZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8                                                        0
-ggZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8                                                          0
-ggZll_Hbb                                                                                           3*4.14E-03*5.824E-01  
-ggZll_Hcc                                                                                           3*4.14E-03*2.891E-02
+WminusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                       0.20927
+WminusH_HToBB_WToLNu_M125_13TeV_powheg_pythia8                                                      0.10899
+WplusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                        0.32993
+WplusH_HToBB_WToLNu_M125_13TeV_powheg_pythia8                                                       0.17202
+WminusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                       0.01040
+WminusH_HToCC_WToLNu_M125_13TeV_powheg_pythia8                                                      0.00541
+WplusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                        0.01639
+WplusH_HToCC_WToLNu_M125_13TeV_powheg_pythia8                                                       0.00854
 
-WminusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                       0
-WminusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                       0
-WplusH_HToBB_WToQQ_M125_13TeV_powheg_pythia8                                                        0
-WplusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8                                                        0
+ZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8                                                          0.09322
+ZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8                                                            0.35941
+ZH_HToBB_ZToLL_M125_13TeV_powheg_pythia8                                                            0.04718
+ZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8                                                          0.00463
+ZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8                                                            0.01785
+ZH_HToCC_ZToLL_M125_13TeV_powheg_pythia8                                                            0.00234
+
+ggZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8                                                        0.01437
+ggZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8                                                          0.04992
+ggZH_HToBB_ZToLL_M125_13TeV_powheg_pythia8                                                          0.00720
+ggZH_HToCC_ZToNuNu_M125_13TeV_powheg_pythia8                                                        0.00071
+ggZH_HToCC_ZToQQ_M125_13TeV_powheg_pythia8                                                          0.00248
+ggZH_HToCC_ZToLL_M125_13TeV_powheg_pythia8                                                          0.00036
+
+ttHTobb_M125_TuneCP5_13TeV-powheg-pythia8                                                           5.071E-01*5.824E-01
+
 
 # DY 
 # GenXsecAnalyzer
