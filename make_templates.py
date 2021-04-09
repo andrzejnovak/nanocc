@@ -6,6 +6,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     import uproot3
 import re
+import json
 from coffea import hist
 from coffea.util import load, save
 import matplotlib.pyplot as plt
@@ -136,8 +137,7 @@ def collate(hist_obj, mergemap=None, info=True):
             json_dumps_str = json.dumps(map_dict, indent=4)
             print(json_dumps_str, file=fout)
     else:
-        with open(mergemap) as json_file:
-            map_dict = json.load(json_file)
+        map_dict = mergemap
 
     if info:
         print("Merging datasets")
@@ -148,8 +148,6 @@ def collate(hist_obj, mergemap=None, info=True):
 
     if mergemap is None:
         print(f"Writing merge map to {outjson}")
-    else:
-        print(f"Merge map loaded from {mergemap}")
     
     # Group
     _cat = hist.Cat("process", "Process", sorting='placement')
@@ -209,8 +207,14 @@ if __name__ == "__main__":
     # Scale by xsecs
     output = rescale(output, xsecs)
     #########
+    # Load mergemap
+    if args.mergemap is not None:
+        with open(args.mergemap) as json_file:  
+            merge_map = json.load(json_file)
+    else:
+        merge_map = None
     # Do Signal region
-    h = collate(output['templates'], args.mergemap).integrate('region', 'signal')
+    h = collate(output['templates'], merge_map).integrate('region', 'signal')
     
     # Scale MC by lumi
     _nodata = re.compile("(?!data_obs)")
@@ -221,7 +225,8 @@ if __name__ == "__main__":
     chists = copy.deepcopy(output)
     for key, val in chists.items():
         if isinstance(val, hist.Hist):
-            val = collate(val, args.mergemap, info=False)
+            args.mergemap
+            val = collate(val, merge_map, info=False)
             val.scale({p: lumi[args.year] for p in val[_nodata].identifiers('process')}, axis="process")
             chists[key] = val
     debug_save_name = f'scaled_hists_{args.identifier}.coffea'
@@ -237,6 +242,7 @@ if __name__ == "__main__":
         CvLcut = 0.84
         CvBcut = 0.11
     else:
+        BvLcut = 0.7
         CvLcut = 0.44
         CvBcut = 0.017
 
@@ -266,21 +272,18 @@ if __name__ == "__main__":
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
-                                    #.integrate('pxx', 1)
                                     .integrate('ddb', overflow='all')
                                     )
                     pcc_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
-                                    #.integrate('pxx', 2)
                                     .integrate('ddb', overflow='all')
                                     )
                     pbb_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
-                                    #.integrate('pxx', 3)
                                     .integrate('ddb', overflow='all')
                                     )
                 elif args.type == 'cc':
@@ -301,15 +304,16 @@ if __name__ == "__main__":
                                     .integrate('ddc', slice(CvLcut, None))
                                     )
 
-                else:
+                elif args.type == 'bb':
+                    # print(h.axis('ddb').identifiers())
+                    # exit()
                     fail_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt', ptbin)
                                     .integrate('ddc')
                                     .integrate('ddcvb')
-                                    #.integrate('pxx')
-                                    .integrate('ddb', slice(None,0.89))
+                                    .integrate('ddb', slice(None, BvLcut))
                                     )
                     pass_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
@@ -317,17 +321,20 @@ if __name__ == "__main__":
                                     .integrate('pt', ptbin)
                                     .integrate('ddc')
                                     .integrate('ddcvb')   
-                                    #.integrate('pxx')
-                                    .integrate('ddb', slice(0.89,None))
+                                    .integrate('ddb', slice(BvLcut, None))
                                     )
-               
+                else:
+                    raise UserWarning("Unknown template type.")
                 try:
                     content = fail_template.sum('msd').values()
                 except:
                     content = pqq_template.sum('msd').values()
 
-                if content == {} or content[()] == 0. and i == 0:
-                    print("Missing", proc, ptbin, syst)
+                if content == {} or content[()] == 0.:
+                    if proc == "data_obs" and syst != "nominal":
+                        pass
+                    else:
+                        print("Missing", proc, ptbin, syst)
                     continue
 
                 sname = "_%s" % syst if syst.name != '' else ''
@@ -353,7 +360,7 @@ if __name__ == "__main__":
     print("Muon CR")
     print(f'Will save templates to {template_mu_file}')
     foutmu = uproot3.create(template_mu_file)
-    h = collate(output['templates']).integrate('region', 'muoncontrol')
+    h = collate(output['templates'], merge_map).integrate('region', 'muoncontrol')
 
     # Scale MC by lumi
     _nodata = re.compile("(?!data_obs)")
@@ -393,43 +400,37 @@ if __name__ == "__main__":
                                     .integrate('systematic', systreal)
                                     .integrate('pt')
                                     .integrate('ddb')
-                                    #.integrate('ddcvb', slice(0.2, None))
                                     .integrate('ddcvb', slice(CvBcut, None))
-                                    #.integrate('ddcvb')
-                                    #.integrate('pxx')
-                                    # .integrate('ddc', slice(None,0.83))
                                     .integrate('ddc', slice(None, CvLcut))
-                                    #.integrate('ddc')
                                     )
                 pass_template = (h.integrate('process', source_proc)
                                     .integrate('genflavor', *mproj)
                                     .integrate('systematic', systreal)
                                     .integrate('pt')
                                     .integrate('ddb')
-                                    # .integrate('ddcvb', slice(0.2, None))   
                                     .integrate('ddcvb', slice(CvBcut, None))   
-                                    #.integrate('ddcvb')
-                                    #.integrate('pxx')
-                                    # .integrate('ddc', slice(0.83,None))
                                     .integrate('ddc', slice(CvLcut, None))
-                                    #.integrate('ddc')
+                                    )
+                
+            elif args.type == 'bb':
+                fail_template = (h.integrate('process', source_proc)
+                                    .integrate('genflavor', *mproj)
+                                    .integrate('systematic', systreal)
+                                    .integrate('pt')
+                                    .integrate('ddb', slice(None, BvLcut))
+                                    .integrate('ddcvb')
+                                    .integrate('ddc')
+                                    )
+                pass_template = (h.integrate('process', source_proc)
+                                    .integrate('genflavor', *mproj)
+                                    .integrate('systematic', systreal)
+                                    .integrate('pt')
+                                    .integrate('ddb', slice(BvLcut, None))
+                                    .integrate('ddcvb')   
+                                    .integrate('ddc')
                                     )
             else:
                 raise NotImplementedError
-                # fail_template = (h.integrate('process', proc)
-                #                     .integrate('AK8Puppijet0_isHadronicV', *mproj)
-                #                     .integrate('systematic', systreal)
-                #                     .integrate('AK8Puppijet0_pt', overflow='all')
-                #                     .integrate('pxx')
-                #                     .integrate('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
-                #                 )
-                # pass_template = (h.integrate('process', proc)
-                #                     .integrate('AK8Puppijet0_isHadronicV', *mproj)
-                #                     .integrate('systematic', systreal)
-                #                     .integrate('AK8Puppijet0_pt', overflow='all')
-                #                     .integrate('pxx')
-                #                     .integrate('AK8Puppijet0_deepdoubleb', slice(0.89,None))
-                                # )
             content = fail_template.sum('msd').values()
             if content == {} or content[()] == 0.:
                 print(proc, syst)

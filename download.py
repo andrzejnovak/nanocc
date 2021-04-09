@@ -63,5 +63,5 @@ if __name__ == '__main__':
 
     print("Writing files to {}".format(args.output))
     with open(args.output, 'w') as fp:
-        json.dump(out_dict, fp, indent=4)
+        json.dump(out_dict, fp, indent=4, sort_keys=True)
         

@@ -200,7 +200,7 @@ if __name__ == '__main__':
                     label="coffea_parsl_slurm",
                     address=address_by_hostname(),
                     prefetch_capacity=0,
-                    #max_workers=nproc,
+                    max_workers=20,
                     #suppress_failure=True,
                     provider=SlurmProvider(
                         channel=LocalChannel(script_dir='test_parsl'),
@@ -227,6 +227,7 @@ if __name__ == '__main__':
                                         'skipbadfiles':True,
                                         'savemetrics':True,
                                         'schema': processor.NanoAODSchema, 
+                                        # 'mmap':True,
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
