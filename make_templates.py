@@ -70,7 +70,7 @@ def rescale(accumulator, xsecs):
             scale[dataset] = lumi*xsecs[dataset_key]/dataset_sumw
         else:
             print(" ", "X ", dataset_key)
-            scale[dataset] = 0#lumi / dataset_sumw
+            scale[dataset] = 0 #lumi / dataset_sumw
 
     for h in accumulator.values():
         if isinstance(h, hist.Hist):
@@ -83,7 +83,7 @@ def collate(hist_obj, mergemap=None, info=True):
     name_map = {
         'JetHT': 'data_obs',
         'SingleMuon': 'data_obs',
-        'QCD' : "qcd", 
+        'QCD': "qcd", 
         'ZJetsToQQ': "zqq", 
         'WJetsToQQ': "wqq", 
         'GluGluHToBB': 'hbb',
@@ -92,12 +92,12 @@ def collate(hist_obj, mergemap=None, info=True):
         'TTToSemiLeptonic': 'tqq',
         'TTToSemileptonic': 'tqq', #
         'TTTo2L2Nu': 'tqq',
-        'ST' : 'stqq',
+        'ST': 'stqq',
         'WW': 'vvqq',
         'WZ': 'vvqq',
         'ZZ': 'vvqq',
-        'WJetsToLNu' : 'wln',
-        'DYJetsToLL' : 'zll',
+        'WJetsToLNu': 'wln',
+        'DYJetsToLL': 'zll',
         'VBFHToCC_M-125_13TeV_powheg_pythia8_weightfix': 'vbfhcc',
         'WminusH_HToCC_WToLNu_M125_13TeV_powheg_pythia8': 'whcc',
         'WminusH_HToCC_WToQQ_M125_13TeV_powheg_pythia8': 'whcc',
@@ -175,6 +175,7 @@ if __name__ == "__main__":
     parser.add_argument("--muon", type=str2bool, default='True', choices={True, False}, help='Process muon templates')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
     parser.add_argument("--type", default='cc', choices=['cc', 'bb', '3'], type=str, help="B templates or C tempaltes")
+    parser.add_argument("--region", default='signal', choices=['signal', 'signal_noddt'], type=str, help="Which region in templates")
 
     parser.add_argument('--pn', '--particleNet', dest='particleNet', action='store_true', help='Use ParticleNet')
     args = parser.parse_args()
@@ -214,7 +215,7 @@ if __name__ == "__main__":
     else:
         merge_map = None
     # Do Signal region
-    h = collate(output['templates'], merge_map).integrate('region', 'signal')
+    h = collate(output['templates'], merge_map).integrate('region', args.region)
     
     # Scale MC by lumi
     _nodata = re.compile("(?!data_obs)")
@@ -243,15 +244,16 @@ if __name__ == "__main__":
         CvBcut = 0.11
     else:
         BvLcut = 0.7
-        CvLcut = 0.44
-        CvBcut = 0.017
+        CvLcut = 0.45
+        CvBcut = 0.03
 
     totn_proc = len(proc_names) + len(h.identifiers('pt'))
     for proc in proc_names:
         print(proc)
         for i, ptbin in enumerate(h.identifiers('pt')):
             for syst in h.identifiers('systematic'):
-                if syst.name != "nominal" and proc == 'data_obs': continue
+                if syst.name != "nominal" and proc.name == 'data_obs': continue
+                # if "LHEScale" in syst.name and ("hbb" not in proc.name or "hcc" not in proc.name): continue
                 source_proc = proc
                 if args.split:
                     if proc.name in ['zbb', 'hbb']:

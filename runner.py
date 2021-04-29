@@ -26,7 +26,7 @@ def validate(fname):
     except:
         print("Corrupted file: {}".format(fname))
         return fname
-        
+
 ### VIZ
 def show_hists(h, title='', scaleH=False):
     hall = []
@@ -41,8 +41,8 @@ def show_hists(h, title='', scaleH=False):
         bins =  h[name].axis('msd').edges()
         hall.append(_h)
         names.append(name.name)
-        
-    print_hist((hall, bins), title=title, 
+
+    print_hist((hall, bins), title=title,
             labels=names,
             stack=True,
             symbols=" ",
@@ -77,12 +77,14 @@ if __name__ == '__main__':
     parser.add_argument("--tightMatch", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
 
     parser.add_argument("--looseTau", type=str2bool, default='False', choices={True, False}, help="Looser tau veto")
-    
+    parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='pt', help='Which jet to take')
+
     parser.add_argument('--newTrigger', action='store_true', help='Use new trig map')
     parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
     parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--dash', type=int, help='Dashboard address for dask', default=8787)
     parser.add_argument('--year', choices=['2016', '2017','2018'], required=True, help='Year to pass to the processor (triggers)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     args = parser.parse_args()
@@ -96,7 +98,7 @@ if __name__ == '__main__':
     # load dataset
     with open(args.samplejson) as f:
         sample_dict = json.load(f)
-    
+
     for key in sample_dict.keys():
         sample_dict[key] = sample_dict[key][:args.limit]
 
@@ -115,7 +117,7 @@ if __name__ == '__main__':
         else:  # is file
             for key in sample_dict.keys():
                 if args.only in sample_dict[key]:
-                    sample_dict = dict([(key, [args.only])]) 
+                    sample_dict = dict([(key, [args.only])])
 
 
     # Scan if files can be opened
@@ -135,17 +137,18 @@ if __name__ == '__main__':
             print(f"  {fi}")
         end = time.time()
         print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
-        if input("Remove bad files? (y/n)") == "y": 
+        if input("Remove bad files? (y/n)") == "y":
             print("Removing:")
             for fi in all_invalid:
-                print(f"Removing: {fi}")            
+                print(f"Removing: {fi}")
                 os.system(f'rm {fi}')
         sys.exit(0)
-  
+
 
     processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year,
                                     nnlops_rew=args.rew, skipJER=not args.jec, tightMatch=args.tightMatch,
                                     newTrigger=args.newTrigger, looseTau=args.looseTau,
+                                    jet_arbitration=args.arb,
                                     )
 
     if args.executor in ['uproot', 'iterative']:
@@ -160,7 +163,7 @@ if __name__ == '__main__':
                                     executor_args={
                                         'skipbadfiles':True,
                                         'savemetrics':True,
-                                        'schema': processor.NanoAODSchema, 
+                                        'schema': processor.NanoAODSchema,
                                         'workers': 4},
                                     chunksize=args.chunk, maxchunks=args.max,
                                     #shuffle=True,
@@ -206,7 +209,7 @@ if __name__ == '__main__':
                         channel=LocalChannel(script_dir='test_parsl'),
                         launcher=SrunLauncher(),
                         max_blocks=(args.workers)+5,
-                        init_blocks=args.workers, 
+                        init_blocks=args.workers,
                         partition='all',
                         # scheduler_options=sched_opts,   # Enter scheduler_options if needed
                         worker_init=wrk_init,         # Enter worker_init if needed
@@ -226,12 +229,12 @@ if __name__ == '__main__':
                                     executor_args={
                                         'skipbadfiles':True,
                                         'savemetrics':True,
-                                        'schema': processor.NanoAODSchema, 
+                                        'schema': processor.NanoAODSchema,
                                         # 'mmap':True,
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
-        print(metrics)                                    
+        print(metrics)
 
     elif args.executor == 'dask':
         from dask_jobqueue import SLURMCluster
@@ -239,13 +242,18 @@ if __name__ == '__main__':
         from dask.distributed import performance_report
 
         cluster = SLURMCluster(
+            scheduler_options={
+                "dashboard_address": f':{args.dash}',
+                'allowed_failures': 50
+            },
             queue='all',
-            cores=40,
-            processes=1,
+            cores=10,
+            processes=5,
             memory="500GB",
             retries=10,
-            walltime='00:30:00',
-            env_extra=['ulimit -u 32768', 'ulimit -n 8000'],
+            walltime='00:60:00',
+            env_extra=['ulimit -u 16000', 'ulimit -n 8000'],
+            extra=["--lifetime", "60m", "--lifetime-stagger", "4m"],
         )
         cluster.scale(jobs=args.workers)
 
@@ -259,9 +267,13 @@ if __name__ == '__main__':
                                         executor=processor.dask_executor,
                                         executor_args={
                                             'client': client,
-                                            'skipbadfiles':True,
-                                            'schema': processor.NanoAODSchema, 
+                                            'skipbadfiles': True,
+                                            'schema': processor.NanoAODSchema,
+                                            "treereduction": 4,
                                         },
                                         chunksize=args.chunk, maxchunks=args.max
                             )
+    
     save(output, args.output)
+    import pickle
+    print("Xsize", len(pickle.dumps(output)))
