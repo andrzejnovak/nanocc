@@ -3,8 +3,9 @@ import sys
 import json
 import argparse
 import time
-
 import pprint
+import pickle
+
 from tqdm import tqdm
 # from p_tqdm import p_map
 from histoprint import print_hist
@@ -70,18 +71,23 @@ if __name__ == '__main__':
     parser.add_argument('--chunk', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
-    parser.add_argument('--v2', action='store_true', help='Use DDX v2')
+    
     parser.add_argument('--rew', action='store_true', help='Reweight powheg sample to NNLOPS')
 
-    parser.add_argument("--jec", type=str2bool, default='True', choices={True, False}, const=True, nargs='?', help="Tighter gen match requirements")
+    parser.add_argument('--tagger', dest='tagger', choices=['v2', 'v1', 'v3', 'v4'], default='v2')
+    parser.add_argument("--jec", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
     parser.add_argument("--tightMatch", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
+    parser.add_argument("--newvjets", type=str2bool, default='True', choices={True, False}, help="New W corrections")
+    parser.add_argument("--newTrigger", type=str2bool, default='True', choices={True, False}, help="New trigger SFs")
 
-    parser.add_argument("--looseTau", type=str2bool, default='False', choices={True, False}, help="Looser tau veto")
+    parser.add_argument("--looseTau", type=str2bool, default='True', choices={True, False}, help="Looser tau veto")
     parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='pt', help='Which jet to take')
 
-    parser.add_argument('--newTrigger', action='store_true', help='Use new trig map')
-    parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
-    parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
+    parser.add_argument('--chunkify', action='store_true', help='chunk-chunk')
+
+    # parser.add_argument('--newTrigger', action='store_true', help='Use new trig map')
+    # parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
+    # parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('--dash', type=int, help='Dashboard address for dask', default=8787)
@@ -145,10 +151,11 @@ if __name__ == '__main__':
         sys.exit(0)
 
 
-    processor_object = HbbProcessor(v2=args.v2, v3=args.particleNet, v4=args.particleNetMix, year=args.year,
+    processor_object = HbbProcessor(tagger=args.tagger, year=args.year,
                                     nnlops_rew=args.rew, skipJER=not args.jec, tightMatch=args.tightMatch,
                                     newTrigger=args.newTrigger, looseTau=args.looseTau,
                                     jet_arbitration=args.arb,
+                                    newVjetsKfactor=args.newvjets,
                                     )
 
     if args.executor in ['uproot', 'iterative']:
@@ -168,8 +175,10 @@ if __name__ == '__main__':
                                     chunksize=args.chunk, maxchunks=args.max,
                                     #shuffle=True,
                                     )
-        import pprint
+        
         pprint.pprint(metrics)
+        save(output, args.output)
+
     elif args.executor == 'parsl':
         import parsl
         from parsl.app.app import python_app, bash_app
@@ -189,13 +198,6 @@ if __name__ == '__main__':
         export X509_CERT_DIR=/home/anovak/certs/
         ulimit -u 32768
         '''
-        twoGB = 2048
-        nproc = 16
-        # sched_opts = '''
-        # #SBATCH --cpus-per-task=%d
-        # #SBATCH --mem-per-cpu=%d
-        # ''' % (nproc, twoGB, )
-
 
         slurm_htex = Config(
             executors=[
@@ -203,7 +205,7 @@ if __name__ == '__main__':
                     label="coffea_parsl_slurm",
                     address=address_by_hostname(),
                     prefetch_capacity=0,
-                    max_workers=20,
+                    max_workers=36,
                     #suppress_failure=True,
                     provider=SlurmProvider(
                         channel=LocalChannel(script_dir='test_parsl'),
@@ -221,11 +223,34 @@ if __name__ == '__main__':
         )
         dfk = parsl.load(slurm_htex)
 
-        _exec = processor.parsl_executor
-        output, metrics = processor.run_uproot_job(sample_dict,
+        if args.chunkify:
+            print("XXX")
+            # os.mkdir("temp")
+            for key, fnames in sample_dict.items():
+                output, metrics = processor.run_uproot_job({key: fnames},
                                     treename='Events',
                                     processor_instance=processor_object,
-                                    executor=_exec,
+                                    executor=processor.parsl_executor,
+                                    executor_args={
+                                        'skipbadfiles':True,
+                                        'savemetrics':True,
+                                        'schema': processor.NanoAODSchema,
+                                        # 'mmap':True,
+                                        'config': None},
+                                    #chunksize=args.chunk, maxchunks=args.max
+                                    chunksize=50000, maxchunks=args.max
+                                    )
+
+                pprint.pprint(metrics, compact=True)
+                save(output, f"temp/{key}.coffea")
+
+                print("X-size", len(pickle.dumps(output))/(1024*1024))
+
+        else:
+            output, metrics = processor.run_uproot_job(sample_dict,
+                                    treename='Events',
+                                    processor_instance=processor_object,
+                                    executor=processor.parsl_executor,
                                     executor_args={
                                         'skipbadfiles':True,
                                         'savemetrics':True,
@@ -234,7 +259,8 @@ if __name__ == '__main__':
                                         'config': None},
                                     chunksize=args.chunk, maxchunks=args.max
                                     )
-        print(metrics)
+        pprint.pprint(metrics, compact=True)
+        save(output, args.output)
 
     elif args.executor == 'dask':
         from dask_jobqueue import SLURMCluster
@@ -273,7 +299,5 @@ if __name__ == '__main__':
                                         },
                                         chunksize=args.chunk, maxchunks=args.max
                             )
-    
-    save(output, args.output)
-    import pickle
-    print("Xsize", len(pickle.dumps(output)))
+
+        save(output, args.output)

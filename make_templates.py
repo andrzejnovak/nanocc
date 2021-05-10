@@ -247,7 +247,6 @@ if __name__ == "__main__":
         CvLcut = 0.45
         CvBcut = 0.03
 
-    totn_proc = len(proc_names) + len(h.identifiers('pt'))
     for proc in proc_names:
         print(proc)
         for i, ptbin in enumerate(h.identifiers('pt')):
