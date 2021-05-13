@@ -52,6 +52,8 @@ def scaleSumW(accumulator, sumw, lumi=1, xs={}):
                 h = copy.deepcopy(h_obj)
                 if sample in xs.keys():
                     h = h * xs[sample]
+                else:
+                    warnings.warn(f'Sample ``{sample}`` cross-section not found.')
                 if sample not in ['JetHT', 'SingleMuon']:
                     h = h  * 1000 / sumw[sample]  # * lumi - do later
 
@@ -100,7 +102,7 @@ def make_1ds(collated, lumi, region='signal', kind='mu', systs=True, dofutures=F
         if proc in ['zbb', 'zcc', 'zqq']: 
             source_proc = 'zqq'
 
-        h_obj = collated[source_proc]['templates']
+        h_obj = copy.deepcopy(collated[source_proc]['templates'])
         if 'data' not in proc:
             h_obj *= lumi
         
@@ -235,11 +237,6 @@ if __name__ == "__main__":
         template_file = f"{_base_name}.root"
         template_mu_file = f"{_base_name}_mu.root"
 
-    print(f'Will save templates to {template_file}')
-    fout = uproot3.recreate(template_file)
-    print(f'Will save muon templates to {template_mu_file}')
-    fout_mu = uproot3.recreate(template_mu_file)
-
     # Load info
     print(f'Processing coffea output from: hists_{args.identifier}.coffea')
     output = load(f'hists_{args.identifier}.coffea')
@@ -259,6 +256,11 @@ if __name__ == "__main__":
     collated = collate(soutput, merge_map)
 
     # Make and write
+    print(f'Will save templates to {template_file}')
+    fout = uproot3.recreate(template_file)
+    print(f'Will save muon templates to {template_mu_file}')
+    fout_mu = uproot3.recreate(template_mu_file)
+    
     if args.workers > 1:
         import concurrent
         pool = concurrent.futures.ProcessPoolExecutor(max_workers=args.workers)
