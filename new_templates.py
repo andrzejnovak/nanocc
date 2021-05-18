@@ -53,7 +53,7 @@ def scaleSumW(accumulator, sumw, lumi=1, xs={}):
                 if sample in xs.keys():
                     h = h * xs[sample]
                 else:
-                    warnings.warn(f'Sample ``{sample}`` cross-section not found.')
+                    warnings.warn(f"Sample ``{sample}`` cross-section not found. (MC won't be included).")
                 if sample not in ['JetHT', 'SingleMuon']:
                     h = h  * 1000 / sumw[sample]  # * lumi - do later
 
@@ -78,7 +78,7 @@ def watcher(future_dict):
         while True:
             time.sleep(0.5)
             done = [future.done() for future in future_dict.values()]
-            pbar.update(np.sum(done)-pbar.n)
+            pbar.update(np.sum(done) - pbar.n)
             if all(done):
                 break
 

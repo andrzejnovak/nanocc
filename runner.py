@@ -81,13 +81,10 @@ if __name__ == '__main__':
     parser.add_argument("--newTrigger", type=str2bool, default='True', choices={True, False}, help="New trigger SFs")
 
     parser.add_argument("--looseTau", type=str2bool, default='True', choices={True, False}, help="Looser tau veto")
-    parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='pt', help='Which jet to take')
+    parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='ddc', help='Which jet to take')
 
     parser.add_argument('--chunkify', action='store_true', help='chunk-chunk')
 
-    # parser.add_argument('--newTrigger', action='store_true', help='Use new trig map')
-    # parser.add_argument('--particleNet', action='store_true', help='Use ParticleNet')
-    # parser.add_argument('--particleNetMix', action='store_true', help='Use ParticleNet')
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('--dash', type=int, help='Dashboard address for dask', default=8787)
@@ -95,6 +92,16 @@ if __name__ == '__main__':
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     args = parser.parse_args()
     print(args)
+    if args.rew and args.year != '2018':
+        print('Are you sure you want to reweight POWHEG->NNLOPS in non-2018?')
+        user_input = input('Confirm? [Y/N]')
+        if user_input.lower() not in ('y', 'yes'):
+            sys.exit()
+    elif not args.rew and args.year == '2018':
+        print('Sure you dont want to reweight POWHEG->NNLOPS in 2018?')
+        user_input = input('Confirm? [Y/N]')
+        if user_input.lower() not in ('y', 'yes'):
+            sys.exit()
     if args.output == parser.get_default('output'):
         if args.identifier == parser.get_default('identifier'):
             args.output = f'hists_{args.sample}.coffea'
@@ -219,7 +226,7 @@ if __name__ == '__main__':
                     ),
                 )
             ],
-            retries=20,
+            retries=2,
         )
         dfk = parsl.load(slurm_htex)
 
