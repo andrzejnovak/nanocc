@@ -39,7 +39,7 @@ class AffineMorphTemplate(object):
             shift += self.mean * (1 - scale)
         scaled_edges = (self.edges - shift) / scale
         return np.diff(self.cdf(scaled_edges)) * self.norm, self.edges
-     
+
 
 class MorphHistW2(object):
     def __init__(self, hist):
@@ -52,13 +52,13 @@ class MorphHistW2(object):
             self.variances = hist.variances
         except:
             self.sumw, self.edges, self.variances = hist
-        
+
         from mplhep.error_estimation import poisson_interval
         down, up = np.nan_to_num(np.abs(poisson_interval(self.sumw, self.variances)), 0.)
 
         self.nominal = AffineMorphTemplate((self.sumw, self.edges))
         self.w2s = AffineMorphTemplate((self.variances, self.edges))
-        
+
     def get(self, shift=0., scale=1.):
         nom, edges = self.nominal.get(shift, scale)
         w2s, edges = self.w2s.get(shift, scale)       
@@ -87,7 +87,7 @@ def export1d(hist, name='x', label='x', histtype=b"TH1F"):
         sumw2 = sumw
     sumw = np.r_[0, sumw, 0]
     sumw2 = np.r_[0, sumw, 0]
- 
+
     out = TH1.__new__(TH1)
     out._fXaxis = TAxis(len(edges) - 1, edges[0], edges[-1])
     out._fXaxis._fName = name
@@ -151,8 +151,8 @@ if __name__ == "__main__":
 
     scale_up = morph_base.get(shift=args.scale)
     scale_down = morph_base.get(shift=-args.scale)
-    smear_up = morph_base.get(scale=1+args.smear)
-    smear_down = morph_base.get(scale=1-args.smear)
+    smear_up = morph_base.get(scale=1 + args.smear)
+    smear_down = morph_base.get(scale=1 - args.smear)
 
 
     if args.plot:

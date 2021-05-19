@@ -41,6 +41,20 @@ def make_wtemplates(collated, temptype, lumi=1, systs=True):
                 # Fail CvL, Pass CvB + N2
                 cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[:0j:sum], 'ddc': s[:0.45j:sum]}}
                 fail_temp = h_obj[cdict]
+            elif temptype == 'cvb':
+                # Pass CvB
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                pass_temp = h_obj[cdict]
+                # Fail CvB 
+                cdict = {**base_cuts, **{'ddcvb': s[:0.03j:sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                fail_temp = h_obj[cdict]
+            elif temptype == 'cvbcvl':
+                # Pass CvL, Pass CvB
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[::sum], 'ddc': s[0.45j::sum]}}
+                pass_temp = h_obj[cdict]
+                # Fail CvL, Pass CvB 
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:sum], 'n2ddt':s[::sum], 'ddc': s[:0.45j:sum]}}
+                fail_temp = h_obj[cdict]
             elif temptype == 'n2cvb':
                 # Pass CvB + N2
                 cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[:0j:sum], 'ddc': s[::sum]}}
@@ -99,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--clip", type=str2bool, default='True', choices={True, False}, help='Clip jet mass range.')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
     parser.add_argument("-j", "--workers", default=0, type=int, help="Parallelize (N/I)")
-    parser.add_argument("--type", default='n2', choices=['n2', 'n2cvb', 'cvl'], type=str, help="Template selection type")
+    parser.add_argument("--type", default='n2', choices=['n2', 'n2cvb', 'cvb', 'cvl', 'cvlcvb'], type=str, help="Template selection type")
     parser.add_argument("-o", "--out", dest='output', default=None, type=str, help="Output file name eg `templates.root`")
 
     args = parser.parse_args()
@@ -208,7 +222,7 @@ if __name__ == "__main__":
                 hep.histplot(templates[f'data_obs_{pf.lower()}_nominal'][{'genflavor': s[::sum]}],
                              histtype='errorbar', color='k', label='Data',
                              capsize=4, elinewidth=1.2, markersize=12)
-                plt.legend(title='Pass')
+                plt.legend(title=pf)
                 plt.xlabel(r'jet $m_{SD}$')
                 if clip:
                     plt.xlim(40, 145)

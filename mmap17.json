@@ -1,6 +1,8 @@
 {
-    "data_obs": [
-        "JetHT",
+    "JetHT": [
+        "JetHT"
+    ],
+    "SingleMuon": [
         "SingleMuon"
     ],
     "zhcc": [

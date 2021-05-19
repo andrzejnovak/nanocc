@@ -17,8 +17,10 @@
         "WJetsToLNu_HT-600To800_TuneCUETP8M1_13TeV-madgraphMLM-pythia8",
         "WJetsToLNu_HT-800To1200_TuneCUETP8M1_13TeV-madgraphMLM-pythia8"
     ],
-    "data_obs": [
-        "JetHT",
+    "JetHT": [
+        "JetHT"
+    ],
+    "SingleMuon": [
         "SingleMuon"
     ],
     "vbfhcc": [
