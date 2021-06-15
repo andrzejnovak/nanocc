@@ -85,15 +85,15 @@ def watcher(future_dict):
     return {name: future.result() for name, future in future_dict.items()}
 
 
-def make_1ds(collated, lumi, region='signal', kind='mu', systs=True, dofutures=False):
+def make_1ds(collated, lumi, region='signal', kind='mu', noCvB=False, systs=True, dofutures=False):
     assert kind in ['mu', 'signal']
-    
+
     s = hist.tag.Slicer()
     proc_names = list(collated.keys()) + ['wcq', 'zbb', 'zcc']
     BvLcut = 0.7
     CvLcut = 0.45
     CvBcut = 0.03
-    
+
     towrite = {}
     for proc in tqdm(proc_names, desc='Samples'):
         source_proc = proc
@@ -103,23 +103,28 @@ def make_1ds(collated, lumi, region='signal', kind='mu', systs=True, dofutures=F
             source_proc = 'zqq'
 
         h_obj = copy.deepcopy(collated[source_proc]['templates'])
-        if 'data' not in proc:
-            h_obj *= lumi
-        
+        if proc not in ['data_obs', 'JetHT', 'SingleMuon']:
+            h_obj = h_obj * lumi
+
         pt_iter = tqdm(h_obj.axes['pt'], desc='Bin', leave=False) if kind == 'signal' else [0]
         for i, ptbin in enumerate(pt_iter):
             for syst in tqdm(h_obj.axes['systematic'], desc='Syst', leave=False):
-                if syst != "nominal" and proc == 'data_obs': continue
-                if not systs and syst != "nominal": continue
+                if syst != "nominal" and proc == 'data_obs':
+                    continue
+                if not systs and syst != "nominal":
+                    continue
 
                 # Make slice dict
                 cdict = {'systematic': syst, 'region': region}
                 if kind == 'signal':
                     cdict['pt'] = i
                 else:
-                    cdict['pt'] = s[::sum]
+                    cdict['pt'] = s[0:len:sum]
                 cdict['ddb'] = s[::sum]
-                cdict['ddcvb'] = s[hist.loc(CvBcut)::sum]
+                if noCvB:
+                    cdict['ddcvb'] = s[::sum]
+                else:
+                    cdict['ddcvb'] = s[hist.loc(CvBcut)::sum]
 
                 # Add genflavor slices
                 if proc in ['zbb', 'hbb']:
@@ -130,14 +135,16 @@ def make_1ds(collated, lumi, region='signal', kind='mu', systs=True, dofutures=F
                     cdict['genflavor'] = s[1]
                 else:
                     cdict['genflavor'] = s[::sum]
-    
+
                 # Apply slices
                 if dofutures:
-                    pass_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc':s[hist.loc(CvLcut)::sum]})
-                    fail_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc':s[:hist.loc(CvLcut):sum]})
+                    pass_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc': s[hist.loc(CvLcut)::sum]})
+                    fail_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc': s[:hist.loc(CvLcut):sum]})
                 else:
-                    pass_template = h_obj[{**cdict, 'ddc':s[hist.loc(CvLcut)::sum]}]
-                    fail_template = h_obj[{**cdict, 'ddc':s[:hist.loc(CvLcut):sum]}]
+                    pass_template = h_obj[{**cdict, 'ddc': s[hist.loc(CvLcut)::sum]}]
+                    fail_template = h_obj[{**cdict, 'ddc': s[:hist.loc(CvLcut):sum]}]
+                    if kind == 'mu' and source_proc == 'tqq':
+                        print(pass_template)
 
                 pass_name = f"{proc}_pass_{syst}"
                 fail_name = f"{proc}_fail_{syst}"
@@ -210,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("--futures", type=str2bool, default='True', choices={True, False}, help='Process systematics')
     parser.add_argument("-j", "--workers", default=0, type=int, help="Parallelize")
     # parser.add_argument("--type", default='cc', choices=['cc', 'bb', '3'], type=str, help="B templates or C tempaltes")
-    parser.add_argument("--region", default='signal', choices=['signal', 'signal_noddt'], type=str, help="Which region in templates")
+    parser.add_argument("--region", default='signal', choices=['signal', 'signal_noddt', 'signal_pure'], type=str, help="Which region in templates")
     parser.add_argument("-o", "--out", dest='output', default=None, type=str, help="Output file name eg `templates.root`")
 
     args = parser.parse_args()
@@ -254,6 +261,8 @@ if __name__ == "__main__":
     # Scale and collate
     soutput = scaleSumW(output, sumw, xs=xsecs)
     collated = collate(soutput, merge_map)
+    # Rename data
+    collated['data_obs'] = collated['JetHT']
 
     # Make and write
     print(f'Will save templates to {template_file}')
@@ -265,7 +274,14 @@ if __name__ == "__main__":
         import concurrent
         pool = concurrent.futures.ProcessPoolExecutor(max_workers=args.workers)
     print(f'Making primary templates')
-    template_dict = make_1ds(collated, lumi[args.year], region=args.region, kind='signal', systs=args.systs, dofutures=args.workers>1)
+    _reg_map = {
+            'signal': 'signal',
+            'signal_noddt': 'signal_noddt',
+            'signal_pure': 'signal_noddt',
+        }
+    template_dict = make_1ds(collated, lumi[args.year], region=_reg_map[args.region], kind='signal', 
+                             noCvB = True if 'pure' in args.region else False, 
+                             systs=args.systs, dofutures=args.workers > 1)
     if args.workers > 1:
         template_dict = watcher(template_dict)
     for name, h_obj in tqdm(template_dict.items(), desc='Writing templates'):
@@ -276,7 +292,17 @@ if __name__ == "__main__":
 
     if args.muon:    
         print(f'Making muon CR templates')
-        template_dict = make_1ds(collated, lumi_mu[args.year], region='muoncontrol', kind='mu', systs=args.systs, dofutures=args.workers>1)
+        # Rename data
+        collated['data_obs'] = collated['SingleMuon']
+        # Make templates
+        _muon_reg_map = {
+            'signal': 'muoncontrol',
+            'signal_noddt': 'muoncontrol_noddt',
+            'signal_pure': 'muoncontrol_noddt',
+        }
+        template_dict = make_1ds(collated, lumi_mu[args.year], region=_muon_reg_map[args.region], kind='mu',
+                                 noCvB = True if 'pure' in args.region else False, 
+                                 systs=args.systs, dofutures=args.workers > 1)
         if args.workers > 1:
             template_dict = watcher(template_dict)
         for name, h_obj in tqdm(template_dict.items(), desc='Writing templates'):

@@ -22,7 +22,7 @@ s = hist.tag.Slicer()
 from new_templates import xSecReader, getSumW, scaleSumW, collate, export1d
 
 
-def make_wtemplates(collated, temptype, lumi=1, systs=True):
+def make_wtemplates(collated, temptype, lumi=1, systs=True, region='wtag'):
     odict = {}
     proc_names = list(collated.keys())
 
@@ -33,54 +33,54 @@ def make_wtemplates(collated, temptype, lumi=1, systs=True):
         else:
             sys_list = ['nominal']
         for syst in tqdm(sys_list, desc='Syst', leave=False):
-            base_cuts = {'region': 'wtag', 'systematic': syst}
+            base_cuts = {'region': region, 'systematic': syst}
             if temptype == 'cvl':
                 # Pass CvL, Pass CvB + N2
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[:0j:sum], 'ddc': s[0.45j::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:0j:sum], 'ddc': s[0.45j:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail CvL, Pass CvB + N2
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[:0j:sum], 'ddc': s[:0.45j:sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:0j:sum], 'ddc': s[0:0.45j:sum]}}
                 fail_temp = h_obj[cdict]
             elif temptype == 'cvb':
                 # Pass CvB
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail CvB 
-                cdict = {**base_cuts, **{'ddcvb': s[:0.03j:sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0:0.03j:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0:len:sum]}}
                 fail_temp = h_obj[cdict]
             elif temptype == 'cvbcvl':
                 # Pass CvL, Pass CvB
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[::sum], 'ddc': s[0.45j::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0.45j:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail CvL, Pass CvB 
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j:sum], 'n2ddt':s[::sum], 'ddc': s[:0.45j:sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0:0.45j:sum]}}
                 fail_temp = h_obj[cdict]
             elif temptype == 'n2cvb':
                 # Pass CvB + N2
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[:0j:sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0:0j:sum], 'ddc': s[0:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail CvB or N2
-                cdict_pf = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[0j::sum], 'ddc': s[::sum]}}
-                cdict_fp = {**base_cuts, **{'ddcvb': s[:0.03j:sum], 'n2ddt':s[:0j:sum], 'ddc': s[::sum]}}
-                cdict_ff = {**base_cuts, **{'ddcvb': s[:0.03j:sum], 'n2ddt':s[0j::sum], 'ddc': s[::sum]}}
+                cdict_pf = {**base_cuts, **{'ddcvb': s[0.03j:len:sum], 'n2ddt':s[0j:len:sum], 'ddc': s[0:len:sum]}}
+                cdict_fp = {**base_cuts, **{'ddcvb': s[0:0.03j:sum], 'n2ddt':s[0:0j:sum], 'ddc': s[0:len:sum]}}
+                cdict_ff = {**base_cuts, **{'ddcvb': s[0:0.03j:sum], 'n2ddt':s[0j:len:sum], 'ddc': s[0:len:sum]}}
                 fail_temp = h_obj[cdict_pf] + h_obj[cdict_fp] + h_obj[cdict_ff]
             elif temptype == 'n2':
                 # Pass N2
-                cdict = {**base_cuts, **{'n2ddt':s[:0j:sum], 'ddcvb': s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'n2ddt':s[0:0j:sum], 'ddcvb': s[0:len:sum], 'ddc': s[0:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail N2
-                cdict = {**base_cuts, **{'n2ddt':s[0j::sum], 'ddcvb': s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'n2ddt':s[0j:len:sum], 'ddcvb': s[0:len:sum], 'ddc': s[0:len:sum]}}
                 fail_temp = h_obj[cdict]
-            elif temptype == 'cvb':
+            elif temptype == 'cvlonly':
                 # Pass CvB
-                cdict = {**base_cuts, **{'ddcvb': s[0.03j::sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0:len:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0.45j:len:sum]}}
                 pass_temp = h_obj[cdict]
                 # Fail CvB
-                cdict = {**base_cuts, **{'ddcvb': s[:0.03j:sum], 'n2ddt':s[::sum], 'ddc': s[::sum]}}
+                cdict = {**base_cuts, **{'ddcvb': s[0:len:sum], 'n2ddt':s[0:len:sum], 'ddc': s[0:0.45j:sum]}}
                 fail_temp = h_obj[cdict]
             else:
                 raise ValueError(f"Template type ``{temptype}`` not understood")
-            if 'data' not in proc:
+            if proc not in ['data_obs', "JetHT", 'SingleMuon']:
                 pass_temp = pass_temp * lumi
                 fail_temp = fail_temp * lumi
 
@@ -113,7 +113,8 @@ if __name__ == "__main__":
     parser.add_argument("--clip", type=str2bool, default='True', choices={True, False}, help='Clip jet mass range.')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
     parser.add_argument("-j", "--workers", default=0, type=int, help="Parallelize (N/I)")
-    parser.add_argument("--type", default='n2', choices=['n2', 'n2cvb', 'cvb', 'cvl', 'cvlcvb'], type=str, help="Template selection type")
+    parser.add_argument("--region", default='wtag', choices=['wtag', 'wtag2'], type=str, help="Selection region")
+    parser.add_argument("--type", default='n2', choices=['n2', 'n2cvb', 'cvb', 'cvl', 'cvbcvl', 'cvlonly'], type=str, help="Template selection type")
     parser.add_argument("-o", "--out", dest='output', default=None, type=str, help="Output file name eg `templates.root`")
 
     args = parser.parse_args()
@@ -135,6 +136,8 @@ if __name__ == "__main__":
     if args.output is None:
         if not os.path.exists(args.identifier):
             os.mkdir(args.identifier)
+        if not os.path.exists(os.path.join(args.identifier, 'plots')):
+            os.mkdir(os.path.join(args.identifier, 'plots'))
         template_file = f"{args.identifier}/wtemplates_{args.type}.root"
     else:
         _base_name = args.output.split(".root")[0]
@@ -156,9 +159,11 @@ if __name__ == "__main__":
 
     soutput = scaleSumW(output, sumw, xs=xsecs)
     collated = collate(soutput, merge_map)
+    # Rename data
+    collated['data_obs'] = collated['SingleMuon']
 
     # Per sample templates
-    templates = make_wtemplates(collated, args.type, lumi=lumi_mu[args.year], systs=args.systs)
+    templates = make_wtemplates(collated, args.type, lumi=lumi_mu[args.year], systs=args.systs, region=args.region)
 
     # Stack them to matched/unmatched
     merged_dict = {}
@@ -190,7 +195,7 @@ if __name__ == "__main__":
     fout.close()
 
     if args.plot:
-        hep.set_style("CMS")
+        hep.style.use("CMS")
 
         for clip in [True, False]:
             for pf in ["Pass", "Fail"]:
@@ -212,8 +217,8 @@ if __name__ == "__main__":
                     plt.xlim(40, 200)
                 hep.cms.label('Preliminary', year=args.year, data=True)
                 _cl = "_clip" if clip else ""
-                fig.savefig(f"{args.identifier}/wtemplates_{args.type}_templates_{pf.lower()}{_cl}.png")
-                fig.savefig(f"{args.identifier}/wtemplates_{args.type}_templates_{pf.lower()}{_cl}.pdf")
+                fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_templates_{pf.lower()}{_cl}.png")
+                fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_templates_{pf.lower()}{_cl}.pdf")
 
                 # Make sample plots
                 fig, ax = plt.subplots()
@@ -230,7 +235,29 @@ if __name__ == "__main__":
                     plt.xlim(40, 200)
                 hep.cms.label('Preliminary', year=args.year, data=True)
                 _cl = "_clip" if clip else ""
-                fig.savefig(f"{args.identifier}/wtemplates_{args.type}_samples_{pf.lower()}{_cl}.png")
-                fig.savefig(f"{args.identifier}/wtemplates_{args.type}_samples_{pf.lower()}{_cl}.pdf")
+                fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_samples_{pf.lower()}{_cl}.png")
+                fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_samples_{pf.lower()}{_cl}.pdf")
+
+                # Make RAW sample plots
+                # if True:
+                #     soutput['data_obs'] = soutput['SingleMuon']
+                #     raw_templates = make_wtemplates(soutput, args.type, lumi=lumi_mu[args.year], systs=args.systs, region=args.region)
+                #     fig, ax = plt.subplots()
+                #     allsamples = [sname for sname in list(soutput.keys())[::-1] if sname not in ['SingleMuon', 'JetHT']]
+                #     mc = [raw_templates[f'{sname}_{pf.lower()}_nominal'][{'genflavor': s[::sum]}] for sname in allsamples]
+                #     hep.histplot(mc, stack=True, label=allsamples[::-1], histtype='fill')
+                #     hep.histplot(raw_templates[f'data_obs_{pf.lower()}_nominal'][{'genflavor': s[::sum]}],
+                #                  histtype='errorbar', color='k', label='Data',
+                #                  capsize=4, elinewidth=1.2, markersize=12)
+                #     plt.legend(title=pf)
+                #     plt.xlabel(r'jet $m_{SD}$')
+                #     if clip:
+                #         plt.xlim(40, 145)
+                #     else:
+                #         plt.xlim(40, 200)
+                #     hep.cms.label('Preliminary', year=args.year, data=True)
+                #     _cl = "_clip" if clip else ""
+                #     fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_raw_{pf.lower()}{_cl}.png")
+                #     fig.savefig(f"{args.identifier}/plots/wtemplates_{args.type}_raw_{pf.lower()}{_cl}.pdf")
 
     print("TIME:", time.strftime("%H:%M:%S", time.gmtime(time.time() - start)))
