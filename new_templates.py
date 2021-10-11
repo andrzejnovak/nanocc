@@ -141,8 +141,14 @@ def make_1ds(collated, lumi, region='signal', kind='mu', noCvB=False, systs=True
                     pass_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc': s[hist.loc(CvLcut)::sum]})
                     fail_template = pool.submit(make_1dhist, h_obj, {**cdict, 'ddc': s[:hist.loc(CvLcut):sum]})
                 else:
-                    pass_template = h_obj[{**cdict, 'ddc': s[hist.loc(CvLcut)::sum]}]
-                    fail_template = h_obj[{**cdict, 'ddc': s[:hist.loc(CvLcut):sum]}]
+                    try:
+                        pass_template = h_obj[{**cdict, 'ddc': s[hist.loc(CvLcut)::sum]}]
+                        fail_template = h_obj[{**cdict, 'ddc': s[:hist.loc(CvLcut):sum]}]
+                    except IndexError as e:
+                        pass_template = None
+                        fail_template = None
+                        print(f"Template for {proc} was empty.")
+
                     if kind == 'mu' and source_proc == 'tqq':
                         print(pass_template)
 
@@ -214,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--split", type=str2bool, default='True', choices={True, False}, help='Split W/Z by flavour')
     parser.add_argument("--muon", type=str2bool, default='True', choices={True, False}, help='Process muon templates')
     parser.add_argument("--systs", type=str2bool, default='False', choices={True, False}, help='Process systematics')
-    parser.add_argument("--futures", type=str2bool, default='True', choices={True, False}, help='Process systematics')
+    parser.add_argument("--futures", type=str2bool, default='False', choices={True, False}, help='Process systematics')
     parser.add_argument("-j", "--workers", default=0, type=int, help="Parallelize")
     # parser.add_argument("--type", default='cc', choices=['cc', 'bb', '3'], type=str, help="B templates or C tempaltes")
     parser.add_argument("--region", default='signal', choices=['signal', 'signal_noddt', 'signal_pure'], type=str, help="Which region in templates")
@@ -285,7 +291,10 @@ if __name__ == "__main__":
     if args.workers > 1:
         template_dict = watcher(template_dict)
     for name, h_obj in tqdm(template_dict.items(), desc='Writing templates'):
-        if np.sum(h_obj.values()) <= 0.:
+        if h_obj is None:
+            print(f'Template {name} is missing')
+            continue
+        if  np.sum(h_obj.values()) <= 0.:
             print(f'Template {name} is empty')
         fout[name] = export1d(h_obj)        
     fout.close()
@@ -306,6 +315,9 @@ if __name__ == "__main__":
         if args.workers > 1:
             template_dict = watcher(template_dict)
         for name, h_obj in tqdm(template_dict.items(), desc='Writing templates'):
+            if h_obj is None:
+                print(f'Template {name} is missing')
+                continue
             if np.sum(h_obj.values()) <= 0.:
                 print(f'Template {name} is empty')
             fout_mu[name] = export1d(h_obj)        
