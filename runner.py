@@ -82,6 +82,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--looseTau", type=str2bool, default='True', choices={True, False}, help="Looser tau veto")
     parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='ddc', help='Which jet to take')
+    parser.add_argument('--tag', choices=['deepcsv', 'deepjet'], default='deepcsv', help='Which ak4 tagger to use')
 
     parser.add_argument('--chunkify', action='store_true', help='chunk-chunk')
 
@@ -163,6 +164,7 @@ if __name__ == '__main__':
                                     newTrigger=args.newTrigger, looseTau=args.looseTau,
                                     jet_arbitration=args.arb,
                                     newVjetsKfactor=args.newvjets,
+                                    ak4tagger=args.tag,
                                     )
 
     if args.executor in ['uproot', 'iterative']:
@@ -213,6 +215,8 @@ if __name__ == '__main__':
                     address=address_by_hostname(),
                     prefetch_capacity=0,
                     max_workers=36,
+                    mem_per_worker=15,
+                    worker_debug=True,
                     #suppress_failure=True,
                     provider=SlurmProvider(
                         channel=LocalChannel(script_dir='test_parsl'),
@@ -245,7 +249,7 @@ if __name__ == '__main__':
                                         # 'mmap':True,
                                         'config': None},
                                     #chunksize=args.chunk, maxchunks=args.max
-                                    chunksize=50000, maxchunks=args.max
+                                    chunksize=args.chunk, maxchunks=args.max
                                     )
 
                 pprint.pprint(metrics, compact=True)
