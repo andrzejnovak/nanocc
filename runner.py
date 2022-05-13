@@ -16,6 +16,13 @@ from coffea import hist
 from coffea.nanoevents import NanoEventsFactory
 from coffea.util import load, save
 
+def ask_user(query):
+    print(query)
+    response = ''
+    while response.lower() not in {"yes", "no"}:
+        response = input("Please enter yes or no: ")
+    return response.lower() == "yes"
+
 from boostedhiggs.hbbprocessor import HbbProcessor
 
 from coffea import processor
@@ -71,20 +78,27 @@ if __name__ == '__main__':
     parser.add_argument('--chunk', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--max', type=int, default=None, metavar='N', help='Max number of chunks to run in total')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
+    parser.add_argument("--skip", type=str2bool, default='True', choices={True, False}, help="Skip bad files")
     
     parser.add_argument('--rew', action='store_true', help='Reweight powheg sample to NNLOPS')
 
+    parser.add_argument("--systs", type=str2bool, default='True', choices={True, False}, help="Run systematics")
     parser.add_argument('--tagger', dest='tagger', choices=['v2', 'v1', 'v3', 'v4'], default='v2')
     parser.add_argument("--jec", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
     parser.add_argument("--tightMatch", type=str2bool, default='True', choices={True, False}, help="Tighter gen match requirements")
     parser.add_argument("--newvjets", type=str2bool, default='True', choices={True, False}, help="New W corrections")
     parser.add_argument("--newTrigger", type=str2bool, default='True', choices={True, False}, help="New trigger SFs")
+    parser.add_argument("--skipRunB", type=str2bool, default='False', choices={True, False}, help="Skip run B of 2017 (bad triggers)")
+    parser.add_argument("--finebins", type=str2bool, default='False', choices={True, False}, help="Run with 2x as many mass bins")
 
     parser.add_argument("--looseTau", type=str2bool, default='True', choices={True, False}, help="Looser tau veto")
     parser.add_argument('--arb', choices=['pt', 'n2', 'ddb', 'ddc'], default='ddc', help='Which jet to take')
     parser.add_argument('--tag', choices=['deepcsv', 'deepjet'], default='deepcsv', help='Which ak4 tagger to use')
+    parser.add_argument("--ewkHcorr", type=str2bool, default='True', choices={True, False}, help="EWK Corrections for H signals. (Lowers yield)")
 
     parser.add_argument('--chunkify', action='store_true', help='chunk-chunk')
+    parser.add_argument('--monitor', action='store_true', help='run parsl with monitoring')
+    parser.add_argument('--merges', type=str2bool, default='True', choices={True, False}, help='Turn on merging')
 
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
     parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
@@ -120,19 +134,27 @@ if __name__ == '__main__':
     if args.only is not None:
         if args.only in sample_dict.keys():  # is dataset
             sample_dict = dict([(args.only, sample_dict[args.only])])
-        if "*" in args.only: # wildcard for datasets
-            _new_dict = {}
-            print("Will only proces the following datasets:")
-            for k, v in sample_dict.items():
-                if k.lstrip("/").startswith(args.only.rstrip("*")):
-                    print("    ", k)
-                    _new_dict[k] = v
-            sample_dict = _new_dict
-        else:  # is file
-            for key in sample_dict.keys():
-                if args.only in sample_dict[key]:
-                    sample_dict = dict([(key, [args.only])])
-
+        _new_dict = {}
+        if "," in args.only:
+            keep_only = args.only.split(",")
+        else:
+            keep_only = [args.only]
+        print("Will only proces the following datasets:")
+        for keep in keep_only:
+            if "*" in keep: # wildcard for datasets
+                for k, v in sample_dict.items():
+                    if k.lstrip("/").startswith(keep.rstrip("*")):
+                        print("    ", k)
+                        _new_dict[k] = v
+            elif keep in sample_dict.keys():
+                print("    ", keep) 
+                _new_dict[keep] = sample_dict[keep]
+            else:
+                for key in sample_dict.keys():
+                    if keep in sample_dict[key]:
+                        _new_dict[key] = [keep]
+        sample_dict = _new_dict
+        print("X", sample_dict.keys())
 
     # Scan if files can be opened
     if args.validate:
@@ -151,20 +173,25 @@ if __name__ == '__main__':
             print(f"  {fi}")
         end = time.time()
         print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
-        if input("Remove bad files? (y/n)") == "y":
-            print("Removing:")
-            for fi in all_invalid:
-                print(f"Removing: {fi}")
-                os.system(f'rm {fi}')
+        if len(all_invalid) > 0:
+            if ask_user(f"Do you want to remove {len(all_invalid)} bad files?"):
+                print("Removing:")
+                for fi in all_invalid:
+                    print(f"Removing: {fi}")
+                    os.system(f'rm {fi}')
         sys.exit(0)
 
 
-    processor_object = HbbProcessor(tagger=args.tagger, year=args.year,
+    start = time.time()
+    processor_object = HbbProcessor(tagger=args.tagger, year=args.year, systematics=args.systs,
                                     nnlops_rew=args.rew, skipJER=not args.jec, tightMatch=args.tightMatch,
                                     newTrigger=args.newTrigger, looseTau=args.looseTau,
                                     jet_arbitration=args.arb,
                                     newVjetsKfactor=args.newvjets,
                                     ak4tagger=args.tag,
+                                    skipRunB=args.skipRunB,
+                                    finebins=args.finebins,
+                                    ewkHcorr=args.ewkHcorr,
                                     )
 
     if args.executor in ['uproot', 'iterative']:
@@ -177,10 +204,10 @@ if __name__ == '__main__':
                                     processor_instance=processor_object,
                                     executor=_exec,
                                     executor_args={
-                                        'skipbadfiles':True,
-                                        'savemetrics':True,
+                                        'skipbadfiles': args.skip,
+                                        'savemetrics': True,
                                         'schema': processor.NanoAODSchema,
-                                        'workers': 4},
+                                        'workers': args.workers},
                                     chunksize=args.chunk, maxchunks=args.max,
                                     #shuffle=True,
                                     )
@@ -196,7 +223,9 @@ if __name__ == '__main__':
         from parsl.channels import LocalChannel
         from parsl.config import Config
         from parsl.executors import HighThroughputExecutor
+        from parsl.executors.threads import ThreadPoolExecutor
         from parsl.launchers import SrunLauncher
+        from parsl.monitoring.monitoring import MonitoringHub
 
         from parsl.addresses import address_by_hostname
 
@@ -207,30 +236,72 @@ if __name__ == '__main__':
         export X509_CERT_DIR=/home/anovak/certs/
         ulimit -u 32768
         '''
+        if args.monitor:
+            monitoring = MonitoringHub(
+                hub_address=address_by_hostname(),
+                hub_port=55055,
+                monitoring_debug=False,
+                resource_monitoring_interval=5,
+            )
+        else:
+            monitoring = None
+
+
+        def retry_handler(exception, task_record):
+            from parsl.executors.high_throughput.interchange import ManagerLost
+            if isinstance(exception, ManagerLost):
+                return 0.1
+            else:
+                return 1
 
         slurm_htex = Config(
             executors=[
                 HighThroughputExecutor(
-                    label="coffea_parsl_slurm",
+                    label="jobs",
                     address=address_by_hostname(),
                     prefetch_capacity=0,
-                    max_workers=36,
-                    mem_per_worker=15,
                     worker_debug=True,
-                    #suppress_failure=True,
                     provider=SlurmProvider(
-                        channel=LocalChannel(script_dir='test_parsl'),
+                        channel=LocalChannel(script_dir='logs_parsl'),
                         launcher=SrunLauncher(),
-                        max_blocks=(args.workers)+5,
+                        max_blocks=args.workers,
                         init_blocks=args.workers,
                         partition='all',
                         # scheduler_options=sched_opts,   # Enter scheduler_options if needed
-                        worker_init=wrk_init,         # Enter worker_init if needed
+                        worker_init=wrk_init, 
                         walltime='03:00:00'
                     ),
-                )
+                ),
+                HighThroughputExecutor(
+                    label="merges",
+                    address=address_by_hostname(),
+                    prefetch_capacity=0,
+                    worker_debug=True,
+                    provider=SlurmProvider(
+                        channel=LocalChannel(script_dir='logs_parsl'),
+                        launcher=SrunLauncher(),
+                        max_blocks=1,
+                        init_blocks=1,
+                        partition='all',
+                        # scheduler_options=sched_opts,   # Enter scheduler_options if needed
+                        worker_init=wrk_init, 
+                        walltime='03:00:00'
+                    ),
+                ),
+                # HighThroughputExecutor(
+                #     label="merges",
+                #     worker_debug=True,
+                #     cores_per_worker=1,
+                #     provider=LocalProvider(
+                #         channel=LocalChannel(),
+                #         init_blocks=1,
+                #         max_blocks=10,
+                #     ),
+                # ),
             ],
+            monitoring=monitoring,
             retries=2,
+            retry_handler=retry_handler,
         )
         dfk = parsl.load(slurm_htex)
 
@@ -243,7 +314,7 @@ if __name__ == '__main__':
                                     processor_instance=processor_object,
                                     executor=processor.parsl_executor,
                                     executor_args={
-                                        'skipbadfiles':True,
+                                        'skipbadfiles': args.skip,
                                         'savemetrics':True,
                                         'schema': processor.NanoAODSchema,
                                         # 'mmap':True,
@@ -257,14 +328,29 @@ if __name__ == '__main__':
 
                 print("X-size", len(pickle.dumps(output))/(1024*1024))
 
+        elif args.merges:
+            output, metrics = processor.run_uproot_job(sample_dict,
+                                    treename='Events',
+                                    processor_instance=processor_object,
+                                    executor=processor.parsl_executor,
+                                    executor_args={
+                                        'skipbadfiles': args.skip,
+                                        'savemetrics': True,
+                                        'schema': processor.NanoAODSchema,
+                                        'merging': True,
+                                        'merges_executors': ['merges'],
+                                        'jobs_executors': ['jobs'],
+                                        'config': None},
+                                    chunksize=args.chunk, maxchunks=args.max
+                                    )
         else:
             output, metrics = processor.run_uproot_job(sample_dict,
                                     treename='Events',
                                     processor_instance=processor_object,
                                     executor=processor.parsl_executor,
                                     executor_args={
-                                        'skipbadfiles':True,
-                                        'savemetrics':True,
+                                        'skipbadfiles': args.skip,
+                                        'savemetrics': True,
                                         'schema': processor.NanoAODSchema,
                                         # 'mmap':True,
                                         'config': None},
@@ -272,6 +358,10 @@ if __name__ == '__main__':
                                     )
         pprint.pprint(metrics, compact=True)
         save(output, args.output)
+
+        import datetime
+        print("Process time:")
+        print(str(datetime.timedelta(seconds=metrics['processtime'])))
 
     elif args.executor == 'dask':
         from dask_jobqueue import SLURMCluster
@@ -304,7 +394,7 @@ if __name__ == '__main__':
                                         executor=processor.dask_executor,
                                         executor_args={
                                             'client': client,
-                                            'skipbadfiles': True,
+                                            'skipbadfiles': args.skip,
                                             'schema': processor.NanoAODSchema,
                                             "treereduction": 4,
                                         },
@@ -312,3 +402,11 @@ if __name__ == '__main__':
                             )
 
         save(output, args.output)
+
+    print("Run time:")
+    end = time.time()
+    print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
+
+    with open(f"metrics_{args.output.split('.')[0]}.json", 'w') as metrics_out:
+        json.dump(metrics, metrics_out, indent=4)
+

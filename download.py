@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('-i', '--input', default=r'metadata/dataset.json', help='')
     parser.add_argument('-d', '--dir', help='Storage directory', required=True)
+    parser.add_argument('-l', '--limit', type=int, default=None, help='Only download N files.')
     parser.add_argument('-o', '--output', default=r'metadata/dataset_local.json', help='')
     parser.add_argument('--download', help='Bool', action='store_true')
     
@@ -22,7 +23,7 @@ if __name__ == '__main__':
         sample_dict = json.load(f)
 
     print("Storage dir:")
-    print("   ", os.path.abspath(args.dir))
+    print("   ", os.path.realpath(args.dir))
 
     # Download instance
     @python_app
@@ -42,13 +43,13 @@ if __name__ == '__main__':
     for key in sorted(sample_dict.keys()):
         new_list = [] 
         #print(key)
-        for i, fname in enumerate(sample_dict[key]):
+        for i, fname in enumerate(sample_dict[key][:args.limit]):
             if i%5 == 0: 
                 # print some progress info
                 ith = f'{key}: {i}/{len(sample_dict[key])}'
             else:
                 ith = None
-            out = os.path.join(os.path.abspath(args.dir), fname.split("//")[-1].lstrip("/"))
+            out = os.path.join(os.path.realpath(args.dir), fname.split("//")[-1].lstrip("/"))
             new_list.append(out)
             if args.download:
                 if os.path.isfile(out):
@@ -64,4 +65,6 @@ if __name__ == '__main__':
     print("Writing files to {}".format(args.output))
     with open(args.output, 'w') as fp:
         json.dump(out_dict, fp, indent=4, sort_keys=True)
-        
+    
+    if not args.download:
+        print("To actually run include ``--download``.")

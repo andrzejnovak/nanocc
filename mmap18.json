@@ -55,7 +55,10 @@
         "DYJetsToLL_M-50_HT-800to1200_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8"
     ],
     "JetHT": [
-        "JetHT"
+        "JetHT_Run2018A", 
+        "JetHT_Run2018B", 
+        "JetHT_Run2018C", 
+        "JetHT_Run2018D"
     ],
     "SingleMuon": [
         "SingleMuon"

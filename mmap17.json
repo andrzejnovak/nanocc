@@ -1,6 +1,10 @@
 {
     "JetHT": [
-        "JetHT"
+        "JetHT_Run2017B",
+        "JetHT_Run2017C",
+        "JetHT_Run2017D",
+        "JetHT_Run2017E",
+        "JetHT_Run2017F"
     ],
     "SingleMuon": [
         "SingleMuon"
