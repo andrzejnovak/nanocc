@@ -101,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('--merges', type=str2bool, default='True', choices={True, False}, help='Turn on merging')
 
     parser.add_argument('--only', type=str, default=None, help='Only process specific dataset or file')
-    parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask'], default='uproot', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot','dask', 'dask/casa'], default='uproot', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('--dash', type=int, help='Dashboard address for dask', default=8787)
     parser.add_argument('--year', choices=['2016', '2017','2018'], required=True, help='Year to pass to the processor (triggers)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
@@ -129,6 +129,12 @@ if __name__ == '__main__':
 
     for key in sample_dict.keys():
         sample_dict[key] = sample_dict[key][:args.limit]
+        
+    import re
+    if args.executor == 'dask/casa' or 'XCACHE_HOST' in os.environ:
+        for key in sample_dict.keys():
+            # sample_dict[key] = [path.replace('xrootd-cms.infn.it/', 'xcache') for path in sample_dict[key]]
+            sample_dict[key] = [re.sub(r'//.*//', r'//xcache///', path) for path in sample_dict[key]]
 
     # For debugging
     if args.only is not None:
@@ -194,7 +200,7 @@ if __name__ == '__main__':
                                     ewkHcorr=args.ewkHcorr,
                                     )
 
-    if args.executor in ['uproot', 'iterative']:
+    if args.executor in ['uproot', 'iterative', 'futures']:
         if args.executor == 'iterative':
             _exec = processor.iterative_executor
         else:
@@ -363,50 +369,122 @@ if __name__ == '__main__':
         print("Process time:")
         print(str(datetime.timedelta(seconds=metrics['processtime'])))
 
-    elif args.executor == 'dask':
-        from dask_jobqueue import SLURMCluster
+#     elif args.executor == 'dask':
+#         from dask_jobqueue import SLURMCluster
+#         from distributed import Client
+#         from dask.distributed import performance_report
+
+#         cluster = SLURMCluster(
+#             scheduler_options={
+#                 "dashboard_address": f':{args.dash}',
+#                 'allowed_failures': 50
+#             },
+#             queue='all',
+#             cores=10,
+#             processes=5,
+#             memory="500GB",
+#             retries=10,
+#             walltime='00:60:00',
+#             env_extra=['ulimit -u 16000', 'ulimit -n 8000'],
+#             extra=["--lifetime", "60m", "--lifetime-stagger", "4m"],
+#         )
+#         cluster.scale(jobs=args.workers)
+
+#         print(cluster.job_script())
+#         client = Client(cluster)
+#         print(cluster)
+#         with performance_report(filename="dask-report.html"):
+#             output = processor.run_uproot_job(sample_dict,
+#                                         treename='Events',
+#                                         processor_instance=processor_object,
+#                                         executor=processor.dask_executor,
+#                                         executor_args={
+#                                             'client': client,
+#                                             'skipbadfiles': args.skip,
+#                                             'schema': processor.NanoAODSchema,
+#                                             "treereduction": 4,
+#                                         },
+#                                         chunksize=args.chunk, maxchunks=args.max
+#                             )
+
+#         save(output, args.output)
+        
+    elif 'dask' in args.executor:
+        from dask_jobqueue import SLURMCluster, HTCondorCluster
         from distributed import Client
         from dask.distributed import performance_report
 
-        cluster = SLURMCluster(
-            scheduler_options={
-                "dashboard_address": f':{args.dash}',
-                'allowed_failures': 50
-            },
-            queue='all',
-            cores=10,
-            processes=5,
-            memory="500GB",
-            retries=10,
-            walltime='00:60:00',
-            env_extra=['ulimit -u 16000', 'ulimit -n 8000'],
-            extra=["--lifetime", "60m", "--lifetime-stagger", "4m"],
-        )
-        cluster.scale(jobs=args.workers)
+        if 'slurm' in args.executor:
+            cluster = SLURMCluster(
+                queue='all',
+                cores=args.workers,
+                processes=args.workers,
+                memory="200 GB",
+                retries=10,
+                walltime='00:30:00',
+                env_extra=env_extra,
+            )
+        elif 'condor' in args.executor:
+            cluster = HTCondorCluster(
+                 cores=args.workers, 
+                 memory='4GB', 
+                 disk='4GB', 
+                 env_extra=env_extra,
+            )
+        
+        if args.executor == 'dask/casa':
+            client = Client("tls://localhost:8786")
+            # client = Client("tls://andrzej-2enovak-40cern-2ech.dask.coffea.casa:8786")
+#             import shutil
+#             shutil.make_archive("workflows", "zip", base_dir="workflows")
+#             client.upload_file("workflows.zip")
+            from distributed.diagnostics.plugin import UploadDirectory
+#             client.register_worker_plugin(UploadDirectory("workflows", restart=True, update_path=True), nanny=True)
+            client.register_worker_plugin(UploadDirectory("workflows", restart=False, update_path=True), nanny=True)
+            # import shutil
+            # shutil.make_archive("boostedhiggs", "zip", base_dir="../boostedhiggs")
+            # client.upload_file("boostedhiggs.zip")
+            from dask.distributed import Client, Worker, WorkerPlugin
+            from typing import List
+            import os
+            class DependencyInstaller(WorkerPlugin):
+                def __init__(self, dependencies: List[str]):
+                    self._depencendies = " ".join(f"'{dep}'" for dep in dependencies)
+                def setup(self, worker: Worker):
+                    os.system(f"pip install {self._depencendies}")
+            dependency_installer = DependencyInstaller([
+                "git+https://github.com/andrzejnovak/boostedhiggs.git#egg=boostedhiggs",
+                "scipy==1.8.1",
+            ])
 
-        print(cluster.job_script())
-        client = Client(cluster)
-        print(cluster)
+            client = Client("tls://localhost:8786")
+            client.register_worker_plugin(dependency_installer)
+
+        else:
+            cluster.adapt(minimum=args.scaleout)
+            client = Client(cluster)
+            print("Waiting for at least one worker...")
+            client.wait_for_workers(1)
         with performance_report(filename="dask-report.html"):
             output = processor.run_uproot_job(sample_dict,
-                                        treename='Events',
-                                        processor_instance=processor_object,
-                                        executor=processor.dask_executor,
-                                        executor_args={
-                                            'client': client,
-                                            'skipbadfiles': args.skip,
-                                            'schema': processor.NanoAODSchema,
-                                            "treereduction": 4,
-                                        },
-                                        chunksize=args.chunk, maxchunks=args.max
-                            )
+                                              treename='Events',
+                                              processor_instance=processor_object,
+                                              executor=processor.dask_executor,
+                                              executor_args={
+                                                  'client': client,
+                                                  # 'skipbadfiles': args.skipbadfiles,
+                                                  'schema': processor.NanoAODSchema,
+                                                  'retries': 3,
+                                              },
+                                              chunksize=args.chunk,
+                                              maxchunks=args.max)
 
-        save(output, args.output)
 
     print("Run time:")
     end = time.time()
     print("TIME:", time.strftime("%H:%M:%S", time.gmtime(end-start)))
 
-    with open(f"metrics_{args.output.split('.')[0]}.json", 'w') as metrics_out:
-        json.dump(metrics, metrics_out, indent=4)
+    if 'metrics' in locals():
+        with open(f"metrics_{args.output.split('.')[0]}.json", 'w') as metrics_out:
+            json.dump(metrics, metrics_out, indent=4)
 
